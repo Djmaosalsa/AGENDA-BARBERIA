@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Agenda Barbería</title>
+
+<style>
+
+body{
+    font-family:Arial,sans-serif;
+    background:#111;
+    color:white;
+    margin:0;
+    padding:20px;
+}
+
+.container{
+    max-width:900px;
+    margin:auto;
+}
+
+h1{
+    text-align:center;
+}
+
+.semana{
+    text-align:center;
+    font-size:20px;
+    font-weight:bold;
+    margin:20px 0;
+}
+
+.estado{
+    text-align:center;
+    padding:14px;
+    border-radius:10px;
+    margin:15px 0;
+    font-weight:bold;
+}
+
+.estadoAbierta{
+    background:#174d24;
+    color:#fff;
+}
+
+.estadoCerrada{
+    background:#651c1c;
+    color:#fff;
+}
+
+.dias{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:8px;
+    margin-bottom:20px;
+}
+
+.dia{
+    padding:12px 18px;
+    border:none;
+    border-radius:8px;
+    background:#333;
+    color:white;
+    font-size:16px;
+    cursor:pointer;
+}
+
+.dia.activo{
+    background:white;
+    color:#111;
+}
+
+.fecha{
+    text-align:center;
+    font-size:21px;
+    margin:20px 0;
+}
+
+.horarios{
+    display:grid;
+    grid-template-columns:
+        repeat(auto-fit,minmax(140px,1fr));
+    gap:10px;
+}
+
+.slot{
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+}
+
+.disponible{
+    background:#174d24;
+    cursor:pointer;
+}
+
+.ocupado{
+    background:#651c1c;
+}
+
+.disponible:hover{
+    background:#226b32;
+}
+
+.aviso{
+    text-align:center;
+    color:#ccc;
+    font-size:14px;
+    line-height:1.5;
+}
+
+.mensajeCerrado{
+    background:#222;
+    border-radius:12px;
+    padding:25px;
+    text-align:center;
+    margin-top:20px;
+}
+
+.botonWhatsApp{
+    display:block;
+    width:100%;
+    box-sizing:border-box;
+    margin-top:12px;
+    padding:13px;
+    border:none;
+    border-radius:8px;
+    background:#174d24;
+    color:white;
+    font-size:16px;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.modal{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.8);
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+}
+
+.modalContenido{
+    background:#222;
+    padding:25px;
+    border-radius:15px;
+    width:100%;
+    max-width:420px;
+    box-sizing:border-box;
+}
+
+.modalContenido h2{
+    text-align:center;
+}
+
+.modalContenido p{
+    line-height:1.5;
+    color:#ddd;
+}
+
+.botonConfirmar{
+    background:#174d24;
+    color:white;
+    width:100%;
+    margin:5px 0;
+}
+
+.botonCerrar{
+    background:#555;
+    color:white;
+    width:100%;
+    margin:5px 0;
+}
+
+input,
+button{
+    font-size:16px;
+    padding:12px;
+    border-radius:8px;
+    border:none;
+    box-sizing:border-box;
+}
+
+input{
+    width:100%;
+    margin:5px 0;
+}
+
+button{
+    cursor:pointer;
+}
+
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>
+        💈 AGENDA BARBERÍA
+    </h1>
+
+    <div
+        id="estadoAgenda"
+        class="estado"
+    ></div>
+
+    <div
+        id="tituloSemana"
+        class="semana"
+    ></div>
+
+    <p class="aviso">
+        Selecciona el día y luego el horario que deseas.
+        <br>
+        🟢 Disponible &nbsp;&nbsp;
+        🔴 Ocupado
+        <br><br>
+        Para reservar, selecciona un horario disponible
+        y continúa por WhatsApp.
+    </p>
+
+    <!-- DÍAS -->
+    <div
+        id="dias"
+        class="dias"
+    ></div>
+
+    <!-- FECHA -->
+    <div
+        id="fechaSeleccionada"
+        class="fecha"
+    ></div>
+
+    <!-- HORARIOS -->
+    <div
+        id="horarios"
+        class="horarios"
+    ></div>
+
+</div>
+
+
+<!-- ==================================================
+     MODAL CLIENTE
+================================================== -->
+
+<div
+    id="modal"
+    class="modal"
+>
+
+    <div
+        class="modalContenido"
+    >
+
+        <h2>
+            📅 Solicitar cita
+        </h2>
+
+        <p id="horaSeleccionada"></p>
+
+        <p>
+            La reserva se confirma por WhatsApp.
+            Escribe tus datos y se abrirá WhatsApp
+            con el mensaje preparado.
+        </p>
+
+        <input
+            type="text"
+            id="nombre"
+            placeholder="Tu nombre"
+        >
+
+        <input
+            type="tel"
+            id="whatsapp"
+            placeholder="Tu número de WhatsApp"
+        >
+
+        <button
+    class="botonConfirmar"
+    onclick="confirmarCita()"
+>
+    ✅ CONFIRMAR CITA
+</button>
+
+        <button
+            class="botonCerrar"
+            onclick="cerrarModal()"
+        >
+            CANCELAR
+        </button>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* ==================================================
+   CONFIGURACIÓN
+================================================== */
+
+/*
+   IMPORTANTE:
+   Reemplaza solamente el número de abajo
+   por el WhatsApp de la barbería.
+
+   Debe ir con código de país, sin +,
+   espacios ni guiones.
+
+   Ejemplo Colombia:
+   573001234567
+*/
+
+const BARBERIA_WHATSAPP = "573187634476";
+const SUPABASE_URL = "https://qfkjpomyuksztpvzxpyb.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_dBEIQpKEg-NjxfTwSiZqPA_79H-cm0c";
+
+let supabaseClient = null;
+
+try {
+    if (
+        window.supabase &&
+        SUPABASE_URL &&
+        SUPABASE_PUBLISHABLE_KEY
+    ) {
+        supabaseClient =
+            window.supabase.createClient(
+                SUPABASE_URL,
+                SUPABASE_PUBLISHABLE_KEY
+            );
+
+        console.log("✅ SUPABASE CONECTADO");
+    } else {
+        console.error(
+            "❌ No se encontró la librería de Supabase o faltan las claves."
+        );
+    }
+} catch (error) {
+    console.error(
+        "❌ Error conectando con Supabase:",
+        error
+    );
+}
+
+
+
+console.log("✅ Supabase conectado correctamente");
+/* ==================================================
+   SEMANA BASE
+================================================== */
+
+const FECHA_BASE =
+    new Date(
+        2026,
+        8,
+        15
+    );
+
+
+let numeroSemana = 0;
+
+let fechaActual =
+    "";
+
+let horaSeleccionada =
+    "";
+
+
+/* ==================================================
+   HORARIOS NORMALES
+================================================== */
+
+const horarios = {
+
+    MARTES:[
+        "09:00","09:30","10:00",
+        "10:30","11:00",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00","17:30",
+        "18:00","18:30","19:00"
+    ],
+
+    MIÉRCOLES:[
+        "09:00","09:30","10:00",
+        "10:30","11:00",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00","17:30",
+        "18:00","18:30","19:00"
+    ],
+
+    JUEVES:[
+        "09:00","09:30","10:00",
+        "10:30","11:00",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00","17:30",
+        "18:00","18:30","19:00"
+    ],
+
+    VIERNES:[
+        "08:30","09:00","09:30","10:00",
+        "10:30","11:00",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00","17:30",
+        "18:00","18:30","19:00"
+    ],
+
+    SÁBADO:[
+        "08:00","08:30","09:00","09:30",
+        "10:00","10:30","11:00","11:30",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00","17:30",
+        "18:00","18:30","19:00"
+    ]
+
+};
+
+
+/* ==================================================
+   CITAS FIJAS
+================================================== */
+
+const citasFijas = {
+
+    MARTES:[
+        "09:00","09:30","10:00",
+        "12:00","12:30"
+    ],
+
+    MIÉRCOLES:[],
+
+    JUEVES:[
+        "09:30","11:00",
+        "12:00","12:30","13:00",
+        "17:30"
+    ],
+
+    VIERNES:[
+        "09:00","09:30","10:00","10:30",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00",
+        "18:00","18:30"
+    ],
+
+    SÁBADO:[
+        "08:00","08:30","09:00","09:30",
+        "10:00","10:30",
+        "11:30","12:00",
+        "14:30","17:00"
+    ]
+
+};
+
+
+/* ==================================================
+   CONTROL AUTOMÁTICO DE AGENDA
+================================================== */
+
+/*
+   La agenda:
+   - Cierra sábado a las 9:00 PM.
+   - Permanece cerrada domingo hasta las 12:00 PM.
+   - Abre domingo a las 12:00 PM para la nueva semana.
+*/
+
+function agendaEstaAbierta(){
+
+    const ahora =
+        new Date();
+
+    const dia =
+        ahora.getDay();
+
+    const hora =
+        ahora.getHours();
+
+    if(
+        dia === 6 &&
+        hora >= 21
+    ){
+        return false;
+    }
+
+    if(
+        dia === 0 &&
+        hora < 12
+    ){
+        return false;
+    }
+
+    return true;
+
+}
+
+
+function calcularNumeroSemanaAutomatico(){
+
+    const ahora =
+        new Date();
+
+    const dia =
+        ahora.getDay();
+
+    let martesActual =
+        new Date(ahora);
+
+    /*
+       Domingo:
+       se muestra la semana que comienza
+       el martes siguiente.
+    */
+
+    if(dia === 0){
+
+        martesActual.setDate(
+            ahora.getDate() + 2
+        );
+
+    }
+
+    /*
+       Lunes:
+       se muestra el martes siguiente.
+    */
+
+    else if(dia === 1){
+
+        martesActual.setDate(
+            ahora.getDate() + 1
+        );
+
+    }
+
+    /*
+       Martes a sábado:
+       se usa el martes de esta semana.
+    */
+
+    else{
+
+        martesActual.setDate(
+            ahora.getDate() -
+            (dia - 2)
+        );
+
+    }
+
+
+    martesActual.setHours(
+        0,0,0,0
+    );
+
+
+    const base =
+        new Date(FECHA_BASE);
+
+    base.setHours(
+        0,0,0,0
+    );
+
+
+    const diferencia =
+        martesActual.getTime() -
+        base.getTime();
+
+
+    return Math.round(
+        diferencia /
+        (1000 * 60 * 60 * 24 * 7)
+    );
+
+}
+
+
+function actualizarEstadoAgenda(){
+
+    const elemento =
+        document.getElementById(
+            "estadoAgenda"
+        );
+
+    if(
+        agendaEstaAbierta()
+    ){
+
+        elemento.className =
+            "estado estadoAbierta";
+
+        elemento.innerHTML =
+            "🟢 AGENDA ABIERTA<br>" +
+            "<small>Puedes solicitar tu cita por WhatsApp.</small>";
+
+    }else{
+
+        elemento.className =
+            "estado estadoCerrada";
+
+        elemento.innerHTML =
+            "🔴 AGENDA CERRADA<br>" +
+            "<small>La nueva semana estará disponible el domingo a las 12:00 PM.</small>";
+
+    }
+
+}
+
+
+/* ==================================================
+   OBTENER SEMANA
+================================================== */
+
+function obtenerSemana(){
+
+    const inicio =
+        new Date(FECHA_BASE);
+
+    inicio.setDate(
+        inicio.getDate() +
+        numeroSemana * 7
+    );
+
+
+    const resultado = [];
+
+
+    for(
+        let i=0;
+        i<5;
+        i++
+    ){
+
+        const fecha =
+            new Date(inicio);
+
+        fecha.setDate(
+            inicio.getDate()+i
+        );
+
+
+        resultado.push({
+
+            fecha:
+                formatoFecha(fecha),
+
+            nombre:
+                obtenerNombreDia(
+                    fecha.getDay()
+                ),
+
+            corto:
+                obtenerCortoDia(
+                    fecha
+                )
+
+        });
+
+    }
+
+
+    return resultado;
+
+}
+
+
+/* ==================================================
+   NOMBRES
+================================================== */
+
+function obtenerNombreDia(numero){
+
+    const nombres = {
+
+        2:"MARTES",
+        3:"MIÉRCOLES",
+        4:"JUEVES",
+        5:"VIERNES",
+        6:"SÁBADO"
+
+    };
+
+
+    return nombres[numero];
+
+}
+
+
+function obtenerCortoDia(fecha){
+
+    const nombres = {
+
+        2:"MAR",
+        3:"MIÉ",
+        4:"JUE",
+        5:"VIE",
+        6:"SÁB"
+
+    };
+
+
+    return (
+
+        nombres[fecha.getDay()] +
+
+        " " +
+
+        String(
+            fecha.getDate()
+        ).padStart(2,"0")
+
+    );
+
+}
+
+
+/* ==================================================
+   FECHAS
+================================================== */
+
+function formatoFecha(fecha){
+
+    return (
+
+        fecha.getFullYear() +
+
+        "-" +
+
+        String(
+            fecha.getMonth()+1
+        ).padStart(2,"0") +
+
+        "-" +
+
+        String(
+            fecha.getDate()
+        ).padStart(2,"0")
+
+    );
+
+}
+
+
+function formatearFecha(fecha){
+
+    const partes =
+        fecha.split("-");
+
+
+    return (
+
+        partes[2] +
+        "/" +
+        partes[1] +
+        "/" +
+        partes[0]
+
+    );
+
+}
+
+
+/* ==================================================
+   TÍTULO
+================================================== */
+
+function actualizarTitulo(){
+
+    const dias =
+        obtenerSemana();
+
+
+    document.getElementById(
+        "tituloSemana"
+    ).textContent =
+
+        "SEMANA DEL " +
+
+        formatearFecha(
+            dias[0].fecha
+        ) +
+
+        " AL " +
+
+        formatearFecha(
+            dias[4].fecha
+        );
+
+}
+
+
+/* ==================================================
+   CITAS GUARDADAS
+================================================== */
+
+async function obtenerCitas(){
+
+    try{
+
+        const resultado =
+            await supabaseClient.rpc(
+                "obtener_disponibilidad"
+            );
+
+        if(resultado.error){
+
+            console.error(
+                "Error obteniendo citas desde Supabase:",
+                resultado.error
+            );
+
+            return {};
+
+        }
+
+        const citas =
+            {};
+
+        (resultado.data || []).forEach(
+            cita => {
+
+                const fecha =
+                    cita.fecha;
+
+                const hora =
+                    String(cita.hora)
+                        .substring(0, 5);
+
+                if(!citas[fecha]){
+
+                    citas[fecha] = [];
+
+                }
+
+                citas[fecha].push({
+
+                    hora: hora
+
+                });
+
+            }
+        );
+
+        console.log(
+            "Citas obtenidas de Supabase:",
+            citas
+        );
+
+        return citas;
+
+    }catch(error){
+
+        console.error(
+            "Error consultando Supabase:",
+            error
+        );
+
+        return {};
+
+    }
+
+}
+
+
+/* ==================================================
+   CANCELACIONES FIJAS
+================================================== */
+
+function obtenerCancelaciones(){
+
+    return JSON.parse(
+
+        localStorage.getItem(
+            "cancelacionesFijas"
+        ) || "{}"
+
+    );
+
+}
+
+
+function estaFijaCancelada(
+    fecha,
+    hora
+){
+
+    const datos =
+        obtenerCancelaciones();
+
+
+    return (
+
+        datos[fecha] &&
+
+        datos[fecha].includes(hora)
+
+    );
+
+}
+
+
+/* ==================================================
+   MOSTRAR DÍAS
+================================================== */
+
+async function mostrarDias(){
+
+    const contenedor =
+        document.getElementById(
+            "dias"
+        );
+
+
+    contenedor.innerHTML = "";
+
+
+    obtenerSemana().forEach(
+        dia => {
+
+            const boton =
+                document.createElement(
+                    "button"
+                );
+
+
+            boton.className =
+                "dia " +
+
+                (
+
+                    dia.fecha === fechaActual
+
+                    ? "activo"
+
+                    : ""
+
+                );
+
+
+            boton.textContent =
+                dia.corto;
+
+
+            boton.onclick =
+                function(){
+
+                    fechaActual =
+                        dia.fecha;
+
+                    mostrarDias();
+
+                    mostrarHorarios();
+
+                };
+
+
+            contenedor.appendChild(
+                boton
+            );
+
+        }
+    );
+
+}
+
+
+/* ==================================================
+   MOSTRAR HORARIOS
+================================================== */
+
+async function mostrarHorarios(){
+
+    const dia =
+        obtenerSemana().find(
+            d =>
+            d.fecha === fechaActual
+        );
+
+
+    if(!dia) return;
+
+
+    document.getElementById(
+        "fechaSeleccionada"
+    ).textContent =
+
+        dia.nombre +
+
+        " " +
+
+        formatearFecha(
+            fechaActual
+        );
+
+
+    const contenedor =
+        document.getElementById(
+            "horarios"
+        );
+
+
+    contenedor.innerHTML = "";
+
+
+    if(
+        !agendaEstaAbierta()
+    ){
+
+        contenedor.innerHTML = `
+            <div class="mensajeCerrado" style="grid-column:1/-1;">
+                <h2>🔒 Agenda cerrada</h2>
+                <p>
+                    En este momento no estamos recibiendo
+                    solicitudes de citas.
+                </p>
+                <p>
+                    La nueva semana se habilita
+                    automáticamente el domingo a las
+                    <strong>12:00 PM</strong>.
+                </p>
+            </div>
+        `;
+
+        return;
+
+    }
+
+
+    const citas =
+       await obtenerCitas();
+
+
+    const citasDelDia =
+        citas[fechaActual] || [];
+
+
+    horarios[dia.nombre].forEach(
+        hora => {
+
+            const div =
+                document.createElement(
+                    "div"
+                );
+
+
+            div.className =
+                "slot";
+
+
+            const fija =
+                citasFijas[dia.nombre]
+                    .includes(hora);
+
+
+            const cancelada =
+                estaFijaCancelada(
+                    fechaActual,
+                    hora
+                );
+
+
+            const cita =
+                citasDelDia.find(
+                    c =>
+                    c.hora === hora
+                );
+
+
+            /*
+               CITA FIJA ACTIVA
+            */
+
+            if(
+                fija &&
+                !cancelada &&
+                !cita
+            ){
+
+                div.classList.add(
+                    "ocupado"
+                );
+
+
+                div.innerHTML = `
+
+                    <strong>
+                        ${formatearHora(hora)}
+                    </strong>
+
+                    <br>
+
+                    🔴 OCUPADO
+
+                `;
+
+            }
+
+
+            /*
+               CITA NORMAL O ESPECIAL
+            */
+
+            else if(cita){
+
+                div.classList.add(
+                    "ocupado"
+                );
+
+
+                div.innerHTML = `
+
+                    <strong>
+                        ${formatearHora(hora)}
+                    </strong>
+
+                    <br>
+
+                    🔴 OCUPADO
+
+                `;
+
+            }
+
+
+            /*
+               DISPONIBLE
+            */
+
+            else{
+
+                div.classList.add(
+                    "disponible"
+                );
+
+
+                div.innerHTML = `
+
+                    <strong>
+                        ${formatearHora(hora)}
+                    </strong>
+
+                    <br>
+
+                    🟢 DISPONIBLE
+
+                `;
+
+
+                div.onclick =
+                    function(){
+
+                        abrirModal(
+                            hora
+                        );
+
+                    };
+
+            }
+
+
+            contenedor.appendChild(
+                div
+            );
+
+        }
+    );
+
+}
+
+
+/* ==================================================
+   CONVERTIR HORA
+================================================== */
+
+function formatearHora(hora){
+
+    const partes =
+        hora.split(":");
+
+    let h =
+        Number(partes[0]);
+
+    const minutos =
+        partes[1];
+
+    const periodo =
+        h >= 12
+        ? "PM"
+        : "AM";
+
+    if(h === 0){
+        h = 12;
+    }else if(h > 12){
+        h -= 12;
+    }
+
+    return (
+        h +
+        ":" +
+        minutos +
+        " " +
+        periodo
+    );
+
+}
+
+
+/* ==================================================
+   MODAL
+================================================== */
+
+function abrirModal(hora){
+
+    /*
+       Comprobación adicional:
+       si la agenda acaba de cerrarse,
+       no se permite continuar.
+    */
+
+    if(
+        !agendaEstaAbierta()
+    ){
+
+        actualizarEstadoAgenda();
+        mostrarHorarios();
+
+        return;
+
+    }
+
+
+    horaSeleccionada =
+        hora;
+
+
+    document.getElementById(
+        "horaSeleccionada"
+    ).innerHTML =
+
+        "Horario seleccionado: <strong>" +
+        formatearHora(hora) +
+        "</strong><br>" +
+        "Fecha: <strong>" +
+        formatearFecha(fechaActual) +
+        "</strong>";
+
+
+    document.getElementById(
+        "modal"
+    ).style.display =
+        "flex";
+
+}
+
+
+function cerrarModal(){
+
+    document.getElementById(
+        "modal"
+    ).style.display =
+        "none";
+
+}
+
+
+/* ==================================================
+   ENVIAR SOLICITUD POR WHATSAPP
+================================================== */
+async function confirmarCita(){
+
+    const nombre =
+        document.getElementById("nombre").value.trim();
+
+    const whatsapp =
+        document.getElementById("whatsapp").value.trim();
+
+    if(!nombre){
+        alert("Por favor, escribe tu nombre.");
+        return;
+    }
+
+    if(!whatsapp){
+        alert("Por favor, escribe tu número de WhatsApp.");
+        return;
+    }
+
+    const { data, error } =
+        await supabaseClient.rpc(
+            "reservar_cita_publica",
+            {
+                p_fecha: fechaActual,
+                p_hora: horaSeleccionada,
+                p_nombre: nombre,
+                p_whatsapp: whatsapp
+            }
+        );
+
+    if(error){
+
+        console.error(
+            "Error reservando cita:",
+            error
+        );
+
+        alert(
+            "❌ Ese horario acaba de ser ocupado.\n\n" +
+            "Por favor, selecciona otro horario."
+        );
+
+        await mostrarHorarios();
+        cerrarModal();
+
+        return;
+    }
+
+    console.log(
+        "✅ CITA RESERVADA:",
+        data
+    );
+
+    /*
+    ==========================================
+    PREPARAMOS WHATSAPP
+    ==========================================
+    */
+
+    const mensaje =
+        "Hola, quiero solicitar una cita en la barbería. 📅\n\n" +
+        "📅 Fecha: " +
+        formatearFecha(fechaActual) +
+        "\n" +
+        "⏰ Hora: " +
+        formatearHora(horaSeleccionada) +
+        "\n" +
+        "👤 Nombre: " +
+        nombre;
+
+    const url =
+        "https://wa.me/" +
+        BARBERIA_WHATSAPP +
+        "?text=" +
+        encodeURIComponent(mensaje);
+
+    /*
+    ==========================================
+    CITA CONFIRMADA
+    ==========================================
+    */
+
+    alert(
+        "✅ ¡CITA CONFIRMADA!\n\n" +
+        "📅 " + formatearFecha(fechaActual) + "\n" +
+        "⏰ " + formatearHora(horaSeleccionada) + "\n" +
+        "👤 " + nombre +
+        "\n\n" +
+        "Ahora se abrirá WhatsApp para enviar la confirmación."
+    );
+
+    cerrarModal();
+
+    await mostrarHorarios();
+
+    /*
+    ==========================================
+    ABRIR WHATSAPP
+    ==========================================
+    */
+
+    window.open(
+        url,
+        "_blank"
+    );
+}
+async function enviarWhatsApp(){
+
+    const nombre =
+        document.getElementById(
+            "nombre"
+        ).value.trim();
+
+
+    const whatsapp =
+        document.getElementById(
+            "whatsapp"
+        ).value.trim();
+
+
+    if(
+        !nombre ||
+        !whatsapp
+    ){
+
+        alert(
+            "Completa tu nombre y tu número de WhatsApp."
+        );
+
+        return;
+
+    }
+
+
+    /*
+       Antes de abrir WhatsApp comprobamos
+       que el horario siga disponible.
+    */
+
+    const citas =
+        await obtenerCitas();
+
+
+    const citasDelDia =
+        citas[fechaActual] || [];
+
+
+    if(
+        citasDelDia.some(
+            c =>
+            c.hora === horaSeleccionada
+        )
+    ){
+
+        alert(
+            "Lo sentimos, esta hora ya fue ocupada."
+        );
+
+        cerrarModal();
+
+        mostrarHorarios();
+
+        return;
+
+    }
+
+
+    const dia =
+        obtenerSemana().find(
+            d =>
+            d.fecha === fechaActual
+        );
+
+
+    if(
+        citasFijas[dia.nombre]
+            .includes(
+                horaSeleccionada
+            )
+        &&
+        !estaFijaCancelada(
+            fechaActual,
+            horaSeleccionada
+        )
+    ){
+
+        alert(
+            "Lo sentimos, esta hora no está disponible."
+        );
+
+        cerrarModal();
+
+        mostrarHorarios();
+
+        return;
+
+    }
+
+
+    if(
+        BARBERIA_WHATSAPP.includes(
+            "X"
+        )
+    ){
+
+        alert(
+            "Primero configura el número de WhatsApp de la barbería en el código."
+        );
+
+        return;
+
+    }
+
+
+    const mensaje =
+
+        "Hola, quiero solicitar una cita en la barbería.%0A%0A" +
+
+        "📅 Fecha: " +
+        formatearFecha(fechaActual) +
+        "%0A" +
+
+        "⏰ Hora: " +
+        formatearHora(horaSeleccionada) +
+        "%0A" +
+
+        "👤 Nombre: " +
+        encodeURIComponent(nombre) +
+        "%0A" +
+
+        "📱 Mi WhatsApp: " +
+        encodeURIComponent(whatsapp);
+
+
+    const url =
+        "https://wa.me/" +
+        BARBERIA_WHATSAPP +
+        "?text=" +
+        mensaje;
+
+
+    /*
+       IMPORTANTE:
+       Aquí NO guardamos la cita.
+
+       La solicitud llega por WhatsApp.
+       El administrador la asigna desde admin.html.
+    */
+
+    window.open(
+        url,
+        "_blank"
+    );
+
+
+    cerrarModal();
+
+}
+
+
+/* ==================================================
+   INICIO AUTOMÁTICO
+================================================== */
+
+function cargarAgendaAutomatica(){
+
+    numeroSemana =
+        calcularNumeroSemanaAutomatico();
+
+
+    const semana =
+        obtenerSemana();
+
+
+    fechaActual =
+        semana[0].fecha;
+
+
+    actualizarEstadoAgenda();
+
+    actualizarTitulo();
+
+    mostrarDias();
+
+    mostrarHorarios();
+
+}
+
+
+/* ==================================================
+   ACTUALIZACIÓN AUTOMÁTICA
+================================================== */
+
+cargarAgendaAutomatica();
+
+
+setInterval(
+    function(){
+
+        const nuevaSemana =
+            calcularNumeroSemanaAutomatico();
+
+
+        if(
+            nuevaSemana !== numeroSemana
+        ){
+
+            numeroSemana =
+                nuevaSemana;
+
+            const semana =
+                obtenerSemana();
+
+            fechaActual =
+                semana[0].fecha;
+
+            actualizarTitulo();
+
+            mostrarDias();
+
+            mostrarHorarios();
+
+        }
+
+
+        actualizarEstadoAgenda();
+
+
+        /*
+           Actualizamos los horarios por si
+           el administrador cambió una cita
+           mientras esta página estaba abierta.
+        */
+
+        if(
+            agendaEstaAbierta()
+        ){
+
+            mostrarHorarios();
+
+        }
+
+    },
+    5000
+);
+
+</script>
+
+</body>
+</html>

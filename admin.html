@@ -1,0 +1,2519 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administrador - Barbería</title>
+
+<style>
+body{
+    font-family:Arial,sans-serif;
+    background:#111;
+    color:white;
+    margin:0;
+    padding:20px;
+}
+
+.container{
+    max-width:950px;
+    margin:auto;
+}
+
+h1,h2{
+    text-align:center;
+}
+
+.login{
+    max-width:400px;
+    margin:80px auto;
+    text-align:center;
+}
+
+input,button{
+    font-size:16px;
+    padding:12px;
+    margin:5px;
+    border-radius:8px;
+    border:none;
+    box-sizing:border-box;
+}
+
+input{
+    width:calc(100% - 10px);
+}
+
+button{
+    cursor:pointer;
+    background:#333;
+    color:white;
+}
+
+button:hover{
+    background:#555;
+}
+
+
+   .oculto{
+    display:none !important;
+}
+
+.panel{
+    background:#1b1b1b;
+    padding:15px;
+    border-radius:12px;
+    margin-bottom:20px;
+}
+
+.navegacionSemana{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:5px;
+    margin:15px 0;
+}
+
+.navegacionSemana button{
+    min-width:150px;
+}
+
+.semanaTitulo{
+    text-align:center;
+    font-size:20px;
+    font-weight:bold;
+    margin:15px 0;
+}
+
+.dias{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    justify-content:center;
+    margin:20px 0;
+}
+
+.dia{
+    padding:12px 18px;
+}
+
+.dia.activo{
+    background:white;
+    color:#111;
+}
+
+.fecha{
+    text-align:center;
+    font-size:20px;
+    margin:15px 0 20px;
+}
+
+.horarios{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px;
+}
+
+.slot{
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+    background:#222;
+}
+
+.disponible{
+    background:#174d24;
+}
+
+.ocupado{
+    background:#651c1c;
+}
+
+.especial{
+    border:2px solid gold;
+}
+
+.slot button{
+    width:100%;
+    margin-top:8px;
+}
+
+.especial-item{
+    background:#252525;
+    padding:12px;
+    margin:8px 0;
+    border-radius:8px;
+}
+
+.eliminar{
+    background:#8b2020;
+}
+
+.estadoAbierta{color:#55e36f;font-weight:bold;font-size:18px;}
+.estadoCerrada{color:#ff6666;font-weight:bold;font-size:18px;}
+.aviso{
+    text-align:center;
+    color:#ccc;
+    font-size:14px;
+}
+
+.modalAsignar{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.82);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+    padding:20px;
+    box-sizing:border-box;
+}
+.modalAsignar.activo{
+    display:flex;
+}
+.modalAsignarCaja{
+    width:100%;
+    max-width:420px;
+    background:#1b1b1b;
+    border-radius:16px;
+    padding:22px;
+    box-sizing:border-box;
+    box-shadow:0 10px 40px rgba(0,0,0,.5);
+}
+.modalAsignarCaja h2{
+    margin-top:0;
+}
+.modalAsignarCaja input{
+    width:100%;
+    margin:8px 0;
+}
+.modalAsignarBotones{
+    display:flex;
+    gap:8px;
+    margin-top:12px;
+}
+.modalAsignarBotones button{
+    flex:1;
+}
+
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://qfkjpomyuksztpvzxpyb.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_dBEIQpKEg-NjxfTwSiZqPA_79H-cm0c";
+
+const supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY
+);
+</script>
+</head>
+
+<body>
+
+<!-- ==================================================
+     LOGIN
+================================================== -->
+
+<div id="login" class="login">
+
+    <h1>🔐 Administración</h1>
+
+   <input
+    type="email"
+    id="emailAdmin"
+    placeholder="Correo electrónico"
+    autocomplete="username"
+>
+
+<input
+    type="password"
+    id="clave"
+    placeholder="Contraseña"
+    autocomplete="current-password"
+>
+
+<label style="display:block; margin:10px 0;">
+    <input type="checkbox" id="recordarme">
+    ☑️ Recordarme
+</label>
+
+    <br>
+
+    <button onclick="entrar()">
+        ENTRAR
+    </button>
+
+    <p id="error" style="color:red;"></p>
+
+</div>
+
+
+<!-- ==================================================
+     ADMINISTRADOR
+================================================== -->
+
+<div id="admin" class="container oculto">
+
+    <h1>💈 Agenda Barbería</h1>
+    <div id="estadoAgenda" class="panel" style="text-align:center;"></div>
+
+
+    <div class="panel">
+
+        <div
+            id="tituloSemana"
+            class="semanaTitulo"
+        ></div>
+
+        <p class="aviso">
+            Las citas fijas se repiten cada semana.
+            Las cancelaciones solamente afectan la fecha seleccionada.
+        </p>
+
+
+        <!-- NAVEGACIÓN SEMANAL -->
+
+        <div class="navegacionSemana">
+
+            <button onclick="semanaAnterior()">
+                ⬅️ SEMANA ANTERIOR
+            </button>
+
+            <button onclick="semanaActual()">
+                📅 SEMANA ACTUAL
+            </button>
+
+            <button onclick="semanaSiguiente()">
+                SEMANA SIGUIENTE ➡️
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- DÍAS -->
+
+    <div
+        class="dias"
+        id="dias"
+    ></div>
+
+
+    <!-- HORARIOS -->
+
+    <div class="panel">
+
+        <div
+            class="fecha"
+            id="fechaSeleccionada"
+        ></div>
+
+        <p class="aviso">
+            El administrador puede asignar manualmente cualquier horario que aparezca como DISPONIBLE.
+        </p>
+
+        <div
+            class="horarios"
+            id="horarios"
+        ></div>
+
+    </div>
+
+
+    <!-- CITAS ESPECIALES -->
+
+    <div class="panel">
+
+        <h2>⭐ Citas especiales</h2>
+
+        <p class="aviso">
+            Las citas especiales son solamente para la fecha seleccionada.
+        </p>
+
+        <button onclick="abrirModalEspecial()">
+            ⭐ ABRIR Y ASIGNAR CITA ESPECIAL
+        </button>
+
+        <button onclick="abrirAvisoAgenda()">
+    📲 AVISO DE AGENDA ABIERTA
+</button>
+
+        <div
+            id="listaEspeciales"
+        ></div>
+
+    </div>
+
+    <!-- CLIENTES -->
+<div class="panel">
+    <h2>👥 Clientes</h2>
+
+    <input
+        type="text"
+        id="buscarCliente"
+        placeholder="🔎 Buscar por nombre o WhatsApp"
+        style="width:100%; padding:12px; margin-bottom:10px;"
+    >
+
+    <div id="listaClientes">
+        Cargando clientes...
+    </div>
+</div>
+
+    <!-- CONTROLES -->
+
+    <div class="panel">
+
+        <button
+            style="background:#7a2222;"
+            onclick="borrarDatosPrueba()"
+        >
+            🧹 BORRAR DATOS DE PRUEBA
+        </button>
+
+        <button onclick="cerrarSesion()">
+            🚪 CERRAR SESIÓN
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- ==================================================
+     MODAL CITA ESPECIAL
+================================================== -->
+
+<div
+    id="modalEspecial"
+    class="oculto"
+    style="
+        position:fixed;
+        inset:0;
+        background:rgba(0,0,0,.8);
+        align-items:center;
+        justify-content:center;
+        padding:20px;
+    "
+>
+
+    <div
+        style="
+            background:#222;
+            padding:25px;
+            border-radius:15px;
+            width:100%;
+            max-width:450px;
+        "
+    >
+
+        <h2>⭐ Cita especial</h2>
+
+        <p>
+            Puedes utilizar intervalos de 15 minutos.
+            Ejemplo: 10:45.
+        </p>
+
+        <label>Hora:</label>
+
+        <input
+            type="time"
+            id="horaEspecial"
+            step="900"
+        >
+
+        <label>Nombre del cliente:</label>
+
+        <input
+            type="text"
+            id="nombreEspecial"
+            placeholder="Nombre"
+        >
+
+        <label>WhatsApp:</label>
+
+        <input
+            type="tel"
+            id="whatsappEspecial"
+            placeholder="WhatsApp"
+        >
+
+        <br>
+
+        <button onclick="guardarCitaEspecial()">
+            💾 ASIGNAR
+        </button>
+
+        <button onclick="cerrarModalEspecial()">
+            CANCELAR
+        </button>
+
+    </div>
+
+</div>
+
+
+
+<!-- ==================================================
+     MODAL ASIGNACIÓN MANUAL
+================================================== -->
+<div id="modalAsignar" class="modalAsignar">
+    <div class="modalAsignarCaja">
+        <h2>➕ Asignar cita</h2>
+
+        <p id="horaModalAsignar" style="text-align:center;font-size:22px;font-weight:bold;"></p>
+
+        <input
+            type="text"
+            id="nombreModal"
+            placeholder="Nombre del cliente"
+            autocomplete="off"
+        >
+
+        <input
+            type="tel"
+            id="whatsappModal"
+            placeholder="WhatsApp del cliente"
+            autocomplete="off"
+        >
+
+        <div class="modalAsignarBotones">
+            <button type="button" onclick="guardarDesdeModal()">
+                ✅ GUARDAR CITA
+            </button>
+
+            <button type="button" onclick="cerrarModalAsignar()">
+                ❌ CANCELAR
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+
+/* ==================================================
+   CONFIGURACIÓN
+================================================== */
+
+const CLAVE_ADMIN = "1234";
+
+function abrirAvisoAgenda(){
+    const mensaje = `🔥 ¡AGENDA ABIERTA! 🔥
+
+💈 Ya puedes reservar tu cita para esta semana.
+
+📅 Martes a sábado
+⏰ Elige tu horario disponible.
+
+📲 Escríbeme por WhatsApp para agendar.
+
+¡Te espero! ✂️🔥`;
+
+    navigator.clipboard.writeText(mensaje)
+        .then(() => {
+            alert("✅ Mensaje copiado.\n\nAhora abre WhatsApp y pégalo en tus listas de difusión.");
+        
+        })
+        .catch(() => {
+            alert("No se pudo copiar automáticamente el mensaje.");
+        });
+}
+let clientesCargados = [];
+let clienteSeleccionado = null;
+
+function seleccionarCliente(id){
+    const cliente = clientesCargados.find(c => c.id === id);
+
+    if(!cliente){
+        alert("No se pudo encontrar el cliente.");
+        return;
+    }
+
+    clienteSeleccionado = cliente;
+
+    console.log("✅ CLIENTE SELECCIONADO:", cliente);
+
+    alert(
+        "✅ Cliente seleccionado:\n\n" +
+        "👤 " + cliente.nombre + "\n" +
+        "📱 " + cliente.whatsapp
+    );
+}
+async function cargarClientes(filtro = ""){
+    const contenedor = document.getElementById("listaClientes");
+
+    contenedor.innerHTML = "Cargando clientes...";
+
+    if(clientesCargados.length === 0){
+
+    const { data, error } = await supabaseClient
+        .from("clientes")
+        .select("id, nombre, whatsapp, recibir_mensajes, estado, fuente")
+        .order("nombre", { ascending: true });
+
+    if(error){
+        console.error("Error cargando clientes:", error);
+        contenedor.innerHTML = "❌ No se pudieron cargar los clientes.";
+        return;
+    }
+
+    clientesCargados = data || [];
+}
+
+    const texto = filtro.toLowerCase().trim();
+
+    const clientesFiltrados = clientesCargados.filter(cliente =>
+        String(cliente.nombre || "").toLowerCase().includes(texto) ||
+        String(cliente.whatsapp || "").includes(texto)
+    );
+
+    if(clientesFiltrados.length === 0){
+        contenedor.innerHTML = "No hay clientes que coincidan.";
+        return;
+    }
+
+    contenedor.innerHTML = clientesFiltrados.map(cliente => `
+        <div style="
+            background:#222;
+            padding:12px;
+            margin-bottom:8px;
+            border-radius:10px;
+        ">
+            <strong>👤 ${cliente.nombre || "Sin nombre"}</strong><br>
+            📱 ${cliente.whatsapp || "Sin WhatsApp"}<br>
+            ${cliente.recibir_mensajes ? "🔔 Avisos: SÍ" : "🔕 Avisos: NO"}<br>
+            🟢 Estado: ${cliente.estado || "activo"}
+            <br>
+<button
+    type="button"
+    onclick="seleccionarCliente(${cliente.id})"
+    style="margin-top:10px; padding:8px 12px; border-radius:8px; cursor:pointer;"
+>
+    👤 SELECCIONAR
+</button>
+        </div>
+    `).join("");
+}
+/* ==================================================
+   FECHA BASE
+================================================== */
+
+const FECHA_BASE = new Date(
+    2026,
+    8,
+    15
+);
+
+
+/*
+   JavaScript usa:
+   0 = domingo
+   1 = lunes
+   2 = martes
+   ...
+   6 = sábado
+*/
+
+
+let numeroSemana = 0;
+let modoSemanaAutomatico = true;
+
+let fechaActual = "2026-09-15";
+
+
+/* ==================================================
+   HORARIOS
+================================================== */
+
+const horarios = {
+
+    MARTES:[
+        "09:00","09:30","10:00",
+        "10:30","11:00",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00","17:30",
+        "18:00","18:30","19:00"
+    ],
+
+    MIÉRCOLES:[
+        "09:00","09:30","10:00",
+        "10:30","11:00",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00","17:30",
+        "18:00","18:30","19:00"
+    ],
+
+    JUEVES:[
+        "09:00","09:30","10:00",
+        "10:30","11:00",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00","17:30",
+        "18:00","18:30","19:00"
+    ],
+
+    VIERNES:[
+        "08:30","09:00","09:30","10:00",
+        "10:30","11:00",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00","17:30",
+        "18:00","18:30","19:00"
+    ],
+
+    SÁBADO:[
+        "08:00","08:30","09:00","09:30",
+        "10:00","10:30","11:00","11:30",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00","17:30",
+        "18:00","18:30","19:00"
+    ]
+
+};
+
+
+/* ==================================================
+   CITAS FIJAS
+================================================== */
+
+const citasFijas = {
+
+    MARTES:[
+        "09:00","09:30","10:00",
+        "12:00","12:30"
+    ],
+
+    MIÉRCOLES:[],
+
+    JUEVES:[
+        "09:30","11:00",
+        "12:00","12:30","13:00",
+        "17:30"
+    ],
+
+    VIERNES:[
+        "09:00","09:30","10:00","10:30",
+        "12:00","12:30",
+        "14:00","14:30","15:00","15:30",
+        "16:00","16:30","17:00",
+        "18:00","18:30"
+    ],
+
+    SÁBADO:[
+        "08:00","08:30","09:00","09:30",
+        "10:00","10:30",
+        "11:30","12:00",
+        "14:30","17:00"
+    ]
+
+};
+
+
+/* ==================================================
+   CREAR SEMANA
+================================================== */
+
+function obtenerSemana(){
+
+    const inicio =
+        new Date(FECHA_BASE);
+
+    inicio.setDate(
+        inicio.getDate() +
+        (numeroSemana * 7)
+    );
+
+
+    const resultado = [];
+
+
+    for(
+        let i = 0;
+        i < 5;
+        i++
+    ){
+
+        const fecha =
+            new Date(inicio);
+
+        fecha.setDate(
+            inicio.getDate() + i
+        );
+
+
+        resultado.push({
+
+            fecha:formatoFecha(fecha),
+
+            nombre:
+                obtenerNombreDia(
+                    fecha.getDay()
+                ),
+
+            corto:
+                obtenerCortoDia(
+                    fecha
+                )
+
+        });
+
+    }
+
+
+    return resultado;
+
+}
+
+
+/* ==================================================
+   NOMBRES
+================================================== */
+
+function obtenerNombreDia(numero){
+
+    const nombres = {
+
+        2:"MARTES",
+        3:"MIÉRCOLES",
+        4:"JUEVES",
+        5:"VIERNES",
+        6:"SÁBADO"
+
+    };
+
+
+    return nombres[numero];
+
+}
+
+
+function obtenerCortoDia(fecha){
+
+    const nombres = {
+
+        2:"MAR",
+        3:"MIÉ",
+        4:"JUE",
+        5:"VIE",
+        6:"SÁB"
+
+    };
+
+
+    const nombre =
+        nombres[fecha.getDay()];
+
+
+    return (
+        nombre +
+        " " +
+        String(
+            fecha.getDate()
+        ).padStart(2,"0")
+    );
+
+}
+
+
+/* ==================================================
+   FORMATO FECHA
+================================================== */
+
+function formatoFecha(fecha){
+
+    const año =
+        fecha.getFullYear();
+
+    const mes =
+        String(
+            fecha.getMonth()+1
+        ).padStart(2,"0");
+
+    const dia =
+        String(
+            fecha.getDate()
+        ).padStart(2,"0");
+
+
+    return (
+        año +
+        "-" +
+        mes +
+        "-" +
+        dia
+    );
+
+}
+
+
+function formatearFecha(fecha){
+
+    const partes =
+        fecha.split("-");
+
+
+    return (
+        partes[2] +
+        "/" +
+        partes[1] +
+        "/" +
+        partes[0]
+    );
+
+}
+
+
+/* ==================================================
+   TÍTULO SEMANA
+================================================== */
+
+function actualizarTituloSemana(){
+
+    const dias =
+        obtenerSemana();
+
+
+    const primero =
+        dias[0].fecha;
+
+    const ultimo =
+        dias[4].fecha;
+
+
+    document.getElementById(
+        "tituloSemana"
+    ).textContent =
+        "SEMANA DEL " +
+        formatearFecha(
+            primero
+        ) +
+        " AL " +
+        formatearFecha(
+            ultimo
+        );
+
+}
+
+
+/* ==================================================
+   CAMBIAR SEMANA
+================================================== */
+
+function semanaAnterior(){
+
+    numeroSemana--;
+    modoSemanaAutomatico = false;
+
+    cargarSemana();
+
+}
+
+
+function semanaSiguiente(){
+
+    numeroSemana++;
+    modoSemanaAutomatico = false;
+
+    cargarSemana();
+
+}
+
+
+function semanaActual(){
+
+    numeroSemana = calcularNumeroSemanaAutomatico();
+    modoSemanaAutomatico = true;
+
+    cargarSemana();
+
+}
+
+
+/* ==================================================
+   CARGAR SEMANA
+================================================== */
+
+function cargarSemana(){
+
+    const dias =
+        obtenerSemana();
+
+
+    /*
+       Al cambiar de semana
+       seleccionamos el martes.
+    */
+
+    fechaActual =
+        dias[0].fecha;
+
+
+    actualizarTituloSemana();
+
+    mostrarDias();
+
+    mostrarHorarios();
+
+    mostrarListaEspeciales();
+
+    actualizarEstadoAgenda();
+
+}
+
+
+/* ==================================================
+   CICLO AUTOMÁTICO DE LA AGENDA
+================================================== */
+
+function agendaEstaAbierta(){
+
+    const ahora = new Date();
+    const dia = ahora.getDay();
+    const total = ahora.getHours() * 60 + ahora.getMinutes();
+
+    // Sábado desde las 9:00 PM hasta domingo 11:59 AM: cerrada.
+    if(dia === 6 && total >= 1260) return false;
+    if(dia === 0 && total < 720) return false;
+
+    return true;
+}
+
+function calcularNumeroSemanaAutomatico(){
+
+    const ahora = new Date();
+    const base = new Date(FECHA_BASE);
+
+    ahora.setHours(0,0,0,0);
+    base.setHours(0,0,0,0);
+
+    let martes = new Date(ahora);
+
+    if(ahora.getDay() === 0){
+        martes.setDate(ahora.getDate() + 2);
+    }else if(ahora.getDay() === 1){
+        martes.setDate(ahora.getDate() + 1);
+    }else{
+        martes.setDate(ahora.getDate() - (ahora.getDay() - 2));
+    }
+
+    const diferencia = Math.floor((martes - base) / 86400000);
+
+    return Math.floor(diferencia / 7);
+}
+
+function actualizarEstadoAgenda(){
+
+    const elemento = document.getElementById("estadoAgenda");
+    if(!elemento) return;
+
+    if(agendaEstaAbierta()){
+        elemento.className = "panel estadoAbierta";
+        elemento.innerHTML = "🟢 AGENDA ABIERTA" +
+            "<br><small style='color:#ccc;font-weight:normal;'>La nueva semana se activa automáticamente cada domingo a las 12:00 PM.</small>";
+    }else{
+        elemento.className = "panel estadoCerrada";
+        elemento.innerHTML = "🔴 AGENDA CERRADA" +
+            "<br><small style='color:#ccc;font-weight:normal;'>La agenda abre automáticamente el domingo a las 12:00 PM.</small>";
+    }
+}
+
+/* ==================================================
+   OBTENER CITAS
+================================================== */
+
+function obtenerCitas(){
+
+    return JSON.parse(
+        localStorage.getItem(
+            "citasBarberia"
+        ) || "{}"
+    );
+
+}
+
+
+function guardarCitas(citas){
+
+    localStorage.setItem(
+        "citasBarberia",
+        JSON.stringify(citas)
+    );
+
+}
+
+
+/* ==================================================
+   CANCELACIONES FIJAS
+================================================== */
+
+function obtenerCancelacionesFijas(){
+
+    return JSON.parse(
+        localStorage.getItem(
+            "cancelacionesFijas"
+        ) || "{}"
+    );
+
+}
+
+
+function guardarCancelacionesFijas(
+    datos
+){
+
+    localStorage.setItem(
+        "cancelacionesFijas",
+        JSON.stringify(datos)
+    );
+
+}
+
+
+function estaFijaCancelada(
+    fecha,
+    hora
+){
+
+    const datos =
+        obtenerCancelacionesFijas();
+
+
+    return (
+        datos[fecha] &&
+        datos[fecha].includes(hora)
+    );
+
+}
+
+
+/* ==================================================
+   ESPECIALES
+================================================== */
+
+function obtenerEspeciales(){
+
+    return JSON.parse(
+        localStorage.getItem(
+            "espaciosEspeciales"
+        ) || "{}"
+    );
+
+}
+
+
+function guardarEspeciales(
+    datos
+){
+
+    localStorage.setItem(
+        "espaciosEspeciales",
+        JSON.stringify(datos)
+    );
+
+}
+
+
+/* ==================================================
+   MOSTRAR DÍAS
+================================================== */
+
+function mostrarDias(){
+
+    const contenedor =
+        document.getElementById(
+            "dias"
+        );
+
+
+    contenedor.innerHTML = "";
+
+
+    const semana =
+        obtenerSemana();
+
+
+    semana.forEach(dia => {
+
+        const boton =
+            document.createElement(
+                "button"
+            );
+
+
+        boton.className =
+            "dia " +
+            (
+                dia.fecha === fechaActual
+                ? "activo"
+                : ""
+            );
+
+
+        boton.textContent =
+            dia.corto;
+
+
+        boton.onclick = function(){
+
+            fechaActual =
+                dia.fecha;
+
+
+            mostrarDias();
+
+            mostrarHorarios();
+
+            mostrarListaEspeciales();
+
+        };
+
+
+        contenedor.appendChild(
+            boton
+        );
+
+    });
+
+}
+
+
+/* ==================================================
+   MOSTRAR HORARIOS
+================================================== */
+
+async function mostrarHorarios(){
+
+    const dia =
+        obtenerSemana().find(
+            d =>
+            d.fecha === fechaActual
+        );
+
+
+    if(!dia) return;
+
+
+    document.getElementById(
+        "fechaSeleccionada"
+    ).textContent =
+        dia.nombre +
+        " " +
+        formatearFecha(
+            fechaActual
+        );
+
+
+    const contenedor =
+        document.getElementById(
+            "horarios"
+        );
+
+
+    contenedor.innerHTML = "";
+
+
+    const resultadoCitas = await supabaseClient.rpc("obtener_disponibilidad");
+
+const citas = {};
+
+(resultadoCitas.data || []).forEach(cita => {
+    const fecha = cita.fecha;
+    const hora = String(cita.hora).substring(0, 5);
+
+    if(!citas[fecha]){
+        citas[fecha] = [];
+    }
+
+    citas[fecha].push({
+        hora: hora
+    });
+});
+
+    const citasDelDia =
+        citas[fechaActual] || [];
+
+
+    const especiales =
+        obtenerEspeciales();
+
+
+    const especialesDelDia =
+        especiales[fechaActual] || [];
+
+
+    let lista = [];
+
+
+    horarios[dia.nombre].forEach(
+        hora => {
+
+            lista.push({
+
+                hora:hora,
+
+                especial:false
+
+            });
+
+        }
+    );
+
+
+    especialesDelDia.forEach(
+        item => {
+
+            if(
+                !lista.some(
+                    x =>
+                    x.hora === item.hora
+                )
+            ){
+
+                lista.push({
+
+                    hora:item.hora,
+
+                    especial:true
+
+                });
+
+            }
+
+        }
+    );
+
+
+    lista.sort(
+        (a,b) =>
+        convertirMinutos(a.hora) -
+        convertirMinutos(b.hora)
+    );
+
+
+    lista.forEach(item => {
+
+        const div =
+            document.createElement(
+                "div"
+            );
+
+
+        div.className =
+            "slot";
+
+
+        if(item.especial){
+
+            div.classList.add(
+                "especial"
+            );
+
+        }
+
+
+        const fija =
+            citasFijas[dia.nombre]
+            .includes(
+                item.hora
+            );
+
+
+        const cancelada =
+            estaFijaCancelada(
+                fechaActual,
+                item.hora
+            );
+
+
+        const cita =
+            citasDelDia.find(
+                c =>
+                c.hora === item.hora
+            );
+
+
+        /* FIJA ACTIVA */
+
+        if(
+            fija &&
+            !cancelada &&
+            !cita
+        ){
+
+            div.classList.add(
+                "ocupado"
+            );
+
+
+            div.innerHTML = `
+
+                <strong>
+                    ${formatearHora12(item.hora)}
+                </strong>
+
+                <br>
+
+                🔒 CITA FIJA
+
+                <br>
+
+                <button
+                    onclick="
+                    cancelarCitaFija(
+                        '${item.hora}'
+                    )
+                    "
+                >
+                    🗑️ CANCELAR ESTA SEMANA
+                </button>
+
+            `;
+
+        }
+
+
+        /* FIJA CANCELADA */
+
+        else if(
+            fija &&
+            cancelada &&
+            !cita
+        ){
+
+            div.classList.add(
+                "disponible"
+            );
+
+
+            div.innerHTML = `
+
+                <strong>
+                    ${formatearHora12(item.hora)}
+                </strong>
+
+                <br>
+
+                🟢 DISPONIBLE
+
+                <br>
+
+                <small>
+                    Fija cancelada esta semana
+                </small>
+
+                <br>
+
+                <button
+                    type="button"
+                    class="btnAsignarNormal"
+                    data-hora="${item.hora}"
+                >
+                    ➕ ASIGNAR
+                </button>
+
+            `;
+
+        }
+
+
+        /* CITA ASIGNADA */
+
+        else if(cita){
+
+            div.classList.add(
+                "ocupado"
+            );
+
+
+            div.innerHTML = `
+
+                <strong>
+                    ${formatearHora12(item.hora)}
+                </strong>
+
+                <br>
+
+                ${
+                    cita.especial
+                    ? "⭐ CITA ESPECIAL"
+                    : "👤 CITA ASIGNADA"
+                }
+
+                <br>
+
+                <strong>
+                    ${cita.nombre}
+                </strong>
+
+                <br>
+
+                ${cita.whatsapp}
+
+                <br>
+
+                <button
+                    onclick="
+                    eliminarCita(
+                        '${item.hora}'
+                    )
+                    "
+                >
+                    🗑️ ELIMINAR
+                </button>
+
+            `;
+
+        }
+
+
+        /* DISPONIBLE */
+
+        else{
+
+            div.classList.add(
+                "disponible"
+            );
+
+
+            div.innerHTML = `
+
+                <strong>
+                    ${formatearHora12(item.hora)}
+                </strong>
+
+                <br>
+
+                🟢 DISPONIBLE
+
+                <br>
+
+                <button
+                    type="button"
+                    class="btnAsignarNormal"
+                    data-hora="${item.hora}"
+                >
+                    ➕ ASIGNAR
+                </button>
+
+            `;
+
+        }
+
+
+        const botonAsignar = div.querySelector(".btnAsignarNormal");
+
+        if(botonAsignar){
+            botonAsignar.addEventListener("click", function(event){
+                event.preventDefault();
+                event.stopPropagation();
+
+                const hora = botonAsignar.dataset.hora;
+
+                if(!hora){
+                    alert("No se pudo identificar la hora de la cita.");
+                    return;
+                }
+
+                abrirCitaNormal(hora);
+            });
+        }
+
+        contenedor.appendChild(
+            div
+        );
+
+    });
+
+}
+
+
+/* ==================================================
+   CANCELAR FIJA
+================================================== */
+
+function cancelarCitaFija(hora){
+
+    if(
+        !confirm(
+            "¿Cancelar esta cita fija SOLO para esta fecha?"
+        )
+    ){
+
+        return;
+
+    }
+
+
+    const datos =
+        obtenerCancelacionesFijas();
+
+
+    if(
+        !datos[fechaActual]
+    ){
+
+        datos[fechaActual] = [];
+
+    }
+
+
+    if(
+        !datos[fechaActual]
+            .includes(hora)
+    ){
+
+        datos[fechaActual]
+            .push(hora);
+
+    }
+
+
+    guardarCancelacionesFijas(
+        datos
+    );
+
+
+    mostrarHorarios();
+
+}
+
+
+/* ==================================================
+   CITA NORMAL
+================================================== */
+
+function abrirCitaNormal(hora){
+
+    if(!fechaActual || !hora){
+        alert("No se pudo identificar la fecha o la hora.");
+        return;
+    }
+
+    const modal = document.getElementById("modalAsignar");
+    const horaTexto = document.getElementById("horaModalAsignar");
+    const nombre = document.getElementById("nombreModal");
+    const whatsapp = document.getElementById("whatsappModal");
+
+    if(!modal || !horaTexto || !nombre || !whatsapp){
+        alert("No se pudo abrir el formulario de asignación.");
+        return;
+    }
+
+    modal.dataset.hora = hora;
+    horaTexto.textContent = "🕐 " + formatearHora12(hora);
+
+    if(clienteSeleccionado){
+    nombre.value = clienteSeleccionado.nombre || "";
+    whatsapp.value = clienteSeleccionado.whatsapp || "";
+}else{
+    nombre.value = "";
+    whatsapp.value = "";
+}
+
+    modal.classList.add("activo");
+
+    setTimeout(function(){
+        nombre.focus();
+    }, 50);
+}
+
+function cerrarModalAsignar(){
+
+    const modal = document.getElementById("modalAsignar");
+
+    if(modal){
+        modal.classList.remove("activo");
+        delete modal.dataset.hora;
+    }
+}
+
+function guardarDesdeModal(){
+
+    const modal = document.getElementById("modalAsignar");
+    const nombre = document.getElementById("nombreModal").value.trim();
+    const whatsapp = document.getElementById("whatsappModal").value.trim();
+
+    if(!modal || !modal.dataset.hora){
+        alert("No se pudo identificar la hora.");
+        return;
+    }
+
+    if(nombre === ""){
+        alert("Escribe el nombre del cliente.");
+        document.getElementById("nombreModal").focus();
+        return;
+    }
+
+    if(whatsapp === ""){
+        alert("Escribe el WhatsApp del cliente.");
+        document.getElementById("whatsappModal").focus();
+        return;
+    }
+
+    const hora = modal.dataset.hora;
+
+   guardarCita(
+    fechaActual,
+    hora,
+    clienteSeleccionado ? clienteSeleccionado.nombre : nombre,
+    clienteSeleccionado ? clienteSeleccionado.whatsapp : whatsapp,
+    false
+);
+
+    cerrarModalAsignar();
+}
+
+
+
+async function guardarCita(fecha, hora, nombre, whatsapp, especial){
+
+    try {
+
+        // Comprobar nuevamente que el horario siga disponible
+        const { data: ocupadas, error: errorDisponibilidad } =
+            await supabaseClient.rpc("obtener_disponibilidad");
+
+        if(errorDisponibilidad){
+
+            console.error(
+                "Error comprobando disponibilidad:",
+                errorDisponibilidad
+            );
+
+            alert(
+                "No se pudo comprobar la disponibilidad. Intenta nuevamente."
+            );
+
+            return;
+        }
+
+        const horaLimpia = String(hora).substring(0, 5);
+
+        const yaOcupada = (ocupadas || []).some(cita =>
+            cita.fecha === fecha &&
+            String(cita.hora).substring(0, 5) === horaLimpia
+        );
+
+        if(yaOcupada){
+
+            alert("Esta hora ya está ocupada.");
+
+            mostrarHorarios();
+
+            return;
+        }
+
+
+        // Buscar si el cliente ya existe
+        let clienteId = null;
+
+        const { data: clienteExistente, error: errorCliente } =
+            await supabaseClient
+                .from("clientes")
+                .select("id")
+                .eq("whatsapp", whatsapp)
+                .maybeSingle();
+
+        if(errorCliente){
+
+            console.error(
+                "Error buscando cliente:",
+                errorCliente
+            );
+
+            alert("No se pudo consultar el cliente.");
+
+            return;
+        }
+
+
+        // Si existe, usamos su ID
+        if(clienteExistente){
+
+            clienteId = clienteExistente.id;
+
+        }else{
+
+            // Si no existe, lo creamos
+            const { data: nuevoCliente, error: errorNuevoCliente } =
+                await supabaseClient
+                    .from("clientes")
+                    .insert([{
+                        nombre: nombre,
+                        whatsapp: whatsapp
+                    }])
+                    .select("id")
+                    .single();
+
+            if(errorNuevoCliente){
+
+                console.error(
+                    "Error creando cliente:",
+                    errorNuevoCliente
+                );
+
+                alert("No se pudo guardar el cliente.");
+
+                return;
+            }
+
+            clienteId = nuevoCliente.id;
+        }
+
+
+        // Guardar la cita en Supabase
+        const { error: errorCita } =
+            await supabaseClient
+                .from("citas")
+                .insert([{
+                    fecha: fecha,
+                    hora: horaLimpia,
+                    cliente_id: clienteId,
+                    nombre_cliente: nombre,
+                    whatsapp_cliente: whatsapp,
+                    tipo: especial ? "especial" : "normal",
+                    estado: "ocupada"
+                }]);
+
+
+        if(errorCita){
+
+            console.error(
+                "Error guardando cita:",
+                errorCita
+            );
+
+            alert(
+                "No se pudo guardar la cita en Supabase."
+            );
+
+            return;
+        }
+
+
+        // Mantener también el funcionamiento actual del administrador
+        const citas = obtenerCitas();
+
+        if(!citas[fecha]){
+            citas[fecha] = [];
+        }
+
+        citas[fecha].push({
+            hora: hora,
+            nombre: nombre,
+            whatsapp: whatsapp,
+            especial: especial
+        });
+
+        guardarCitas(citas);
+
+
+        alert("✅ CITA GUARDADA CORRECTAMENTE");
+
+        mostrarHorarios();
+
+    }catch(error){
+
+        console.error(
+            "Error inesperado guardando cita:",
+            error
+        );
+
+        alert(
+            "Ocurrió un error al guardar la cita."
+        );
+    }
+}
+
+
+/* ==================================================
+   MODAL ESPECIAL
+================================================== */
+
+function abrirModalEspecial(){
+
+    const modal =
+        document.getElementById("modalEspecial");
+
+    modal.classList.remove("oculto");
+
+    modal.style.display = "flex";
+}
+
+
+function cerrarModalEspecial(){
+
+    const modal =
+        document.getElementById("modalEspecial");
+
+    modal.style.display = "none";
+
+    modal.classList.add("oculto");
+}
+
+
+/* ==================================================
+   VALIDAR JORNADA
+================================================== */
+
+function estaDentroJornada(
+    dia,
+    minutos
+){
+
+    const jornadas = {
+
+        MARTES:[
+            [540,660],
+            [720,750],
+            [840,1170]
+        ],
+
+        MIÉRCOLES:[
+            [540,660],
+            [720,750],
+            [840,1170]
+        ],
+
+        JUEVES:[
+            [540,660],
+            [720,750],
+            [840,1170]
+        ],
+
+        VIERNES:[
+            [510,660],
+            [720,750],
+            [840,1170]
+        ],
+
+        SÁBADO:[
+            [480,750],
+            [840,1170]
+        ]
+
+    };
+
+
+    return jornadas[dia].some(
+        rango =>
+        minutos >= rango[0] &&
+        minutos + 30 <= rango[1]
+    );
+
+}
+
+
+/* ==================================================
+   CITA ESPECIAL
+================================================== */
+
+function guardarCitaEspecial(){
+
+    const hora =
+        document.getElementById(
+            "horaEspecial"
+        ).value;
+
+
+    const nombre =
+        document.getElementById(
+            "nombreEspecial"
+        ).value.trim();
+
+
+    const whatsapp =
+        document.getElementById(
+            "whatsappEspecial"
+        ).value.trim();
+
+
+    if(
+        !hora ||
+        !nombre ||
+        !whatsapp
+    ){
+
+        alert(
+            "Completa todos los campos."
+        );
+
+        return;
+
+    }
+
+
+    const minutos =
+        convertirMinutos(hora);
+
+
+    if(
+        minutos % 15 !== 0
+    ){
+
+        alert(
+            "La hora debe estar en intervalos de 15 minutos."
+        );
+
+        return;
+
+    }
+
+
+    const dia =
+        obtenerSemana().find(
+            d =>
+            d.fecha === fechaActual
+        );
+
+
+    if(
+        !estaDentroJornada(
+            dia.nombre,
+            minutos
+        )
+    ){
+
+        alert(
+            "Esa hora está fuera del horario."
+        );
+
+        return;
+
+    }
+
+
+    const citas =
+        obtenerCitas();
+
+
+    const citasDia =
+        citas[fechaActual] || [];
+
+
+    if(
+        citasDia.some(
+            c =>
+            c.hora === hora
+        )
+    ){
+
+        alert(
+            "Esa hora ya está ocupada."
+        );
+
+        return;
+
+    }
+
+
+    if(
+        citasFijas[dia.nombre]
+            .includes(hora)
+        &&
+        !estaFijaCancelada(
+            fechaActual,
+            hora
+        )
+    ){
+
+        alert(
+            "Esa hora pertenece a una cita fija."
+        );
+
+        return;
+
+    }
+
+
+    if(
+        !citas[fechaActual]
+    ){
+
+        citas[fechaActual] = [];
+
+    }
+
+
+    citas[fechaActual].push({
+
+        hora:hora,
+
+        nombre:nombre,
+
+        whatsapp:whatsapp,
+
+        especial:true
+
+    });
+
+
+    guardarCitas(citas);
+
+
+    const especiales =
+        obtenerEspeciales();
+
+
+    if(
+        !especiales[fechaActual]
+    ){
+
+        especiales[fechaActual] = [];
+
+    }
+
+
+    especiales[fechaActual].push({
+
+        hora:hora,
+
+        nombre:nombre,
+
+        whatsapp:whatsapp
+
+    });
+
+
+    guardarEspeciales(
+        especiales
+    );
+
+
+    document.getElementById(
+        "horaEspecial"
+    ).value = "";
+
+
+    document.getElementById(
+        "nombreEspecial"
+    ).value = "";
+
+
+    document.getElementById(
+        "whatsappEspecial"
+    ).value = "";
+
+
+    cerrarModalEspecial();
+
+    mostrarHorarios();
+
+    mostrarListaEspeciales();
+
+}
+
+
+/* ==================================================
+   LISTA ESPECIALES
+================================================== */
+
+function mostrarListaEspeciales(){
+
+    const contenedor =
+        document.getElementById(
+            "listaEspeciales"
+        );
+
+
+    const especiales =
+        obtenerEspeciales();
+
+
+    const lista =
+        especiales[fechaActual] || [];
+
+
+    if(
+        lista.length === 0
+    ){
+
+        contenedor.innerHTML =
+            "<p>No hay citas especiales este día.</p>";
+
+        return;
+
+    }
+
+
+    contenedor.innerHTML = "";
+
+
+    lista.forEach(item => {
+
+        const div =
+            document.createElement(
+                "div"
+            );
+
+
+        div.className =
+            "especial-item";
+
+
+        div.innerHTML = `
+
+            ⭐ <strong>
+                ${formatearHora12(item.hora)}
+            </strong>
+
+            <br>
+
+            Cliente:
+            ${item.nombre}
+
+            <br>
+
+            WhatsApp:
+            ${item.whatsapp}
+
+            <br>
+
+            <button
+                class="eliminar"
+                onclick="
+                eliminarEspecial(
+                    '${item.hora}'
+                )
+                "
+            >
+                🗑️ ELIMINAR ESPECIAL
+            </button>
+
+        `;
+
+
+        contenedor.appendChild(
+            div
+        );
+
+    });
+
+}
+
+
+/* ==================================================
+   ELIMINAR ESPECIAL
+================================================== */
+
+function eliminarEspecial(hora){
+
+    if(
+        !confirm(
+            "¿Eliminar esta cita especial?"
+        )
+    ){
+
+        return;
+
+    }
+
+
+    const especiales =
+        obtenerEspeciales();
+
+
+    if(
+        especiales[fechaActual]
+    ){
+
+        especiales[fechaActual] =
+            especiales[fechaActual].filter(
+                e =>
+                e.hora !== hora
+            );
+
+    }
+
+
+    guardarEspeciales(
+        especiales
+    );
+
+
+    const citas =
+        obtenerCitas();
+
+
+    if(
+        citas[fechaActual]
+    ){
+
+        citas[fechaActual] =
+            citas[fechaActual].filter(
+                c =>
+                !(
+                    c.hora === hora &&
+                    c.especial === true
+                )
+            );
+
+    }
+
+
+    guardarCitas(citas);
+
+
+    mostrarHorarios();
+
+    mostrarListaEspeciales();
+
+}
+
+
+/* ==================================================
+   ELIMINAR CITA
+================================================== */
+
+async function eliminarCita(hora){
+
+    if(!confirm("¿Eliminar esta cita?")){
+        return;
+    }
+
+    // ELIMINAR DE SUPABASE
+    const { error } = await supabaseClient
+        .from("citas")
+        .delete()
+        .eq("fecha", fechaActual)
+        .eq("hora", hora)
+        .eq("estado", "ocupada");
+
+    if(error){
+        console.error("Error eliminando cita de Supabase:", error);
+        alert("❌ No se pudo eliminar la cita de la base de datos.");
+        return;
+    }
+
+    // ELIMINAR TAMBIÉN DEL ALMACENAMIENTO LOCAL
+    const citas = obtenerCitas();
+
+    if(citas[fechaActual]){
+        citas[fechaActual] =
+            citas[fechaActual].filter(
+                c => c.hora !== hora
+            );
+    }
+
+    guardarCitas(citas);
+
+    // ACTUALIZAR ADMINISTRADOR
+    mostrarHorarios();
+    mostrarListaEspeciales();
+
+    alert("✅ Cita eliminada correctamente.");
+}
+
+
+/* ==================================================
+   UTILIDADES
+================================================== */
+
+function formatearHora12(hora){
+
+    const partes = hora.split(":");
+    let horas = Number(partes[0]);
+    const minutos = partes[1];
+
+    const periodo = horas >= 12 ? "PM" : "AM";
+
+    if(horas === 0){
+        horas = 12;
+    }else if(horas > 12){
+        horas -= 12;
+    }
+
+    return horas + ":" + minutos + " " + periodo;
+}
+
+
+function convertirMinutos(hora){
+
+    const partes =
+        hora.split(":");
+
+
+    return (
+        Number(partes[0]) * 60 +
+        Number(partes[1])
+    );
+
+}
+
+
+/* ==================================================
+   BORRAR PRUEBAS
+================================================== */
+
+function borrarDatosPrueba(){
+
+    if(
+        !confirm(
+            "¿Eliminar todas las citas, especiales y cancelaciones de prueba?"
+        )
+    ){
+
+        return;
+
+    }
+
+
+    localStorage.removeItem(
+        "citasBarberia"
+    );
+
+
+    localStorage.removeItem(
+        "espaciosEspeciales"
+    );
+
+
+    localStorage.removeItem(
+        "cancelacionesFijas"
+    );
+
+
+    mostrarHorarios();
+
+    mostrarListaEspeciales();
+
+
+    alert(
+        "Datos de prueba eliminados."
+    );
+
+}
+
+
+/* ==================================================
+   LOGIN
+================================================== */
+
+async function entrar(){
+
+    const email = document.getElementById("emailAdmin").value.trim();
+    const clave = document.getElementById("clave").value;
+    const recordar = document.getElementById("recordarme").checked;
+
+    const error = document.getElementById("error");
+
+    error.textContent = "";
+
+    if(!email || !clave){
+
+        error.textContent = "Ingresa tu correo y contraseña.";
+        return;
+
+    }
+
+    const { data, error: authError } =
+        await supabaseClient.auth.signInWithPassword({
+
+            email: email,
+            password: clave
+
+        });
+
+    if(authError){
+
+        console.error("Error de inicio de sesión:", authError);
+
+        error.textContent =
+            "Correo o contraseña incorrectos.";
+
+        return;
+    }
+
+    console.log("✅ ADMINISTRADOR AUTENTICADO");
+    localStorage.setItem("recordarAdmin", recordar ? "si" : "no");
+
+    document.getElementById("login")
+        .classList.add("oculto");
+
+    document.getElementById("admin")
+        .classList.remove("oculto");
+
+    numeroSemana =
+        calcularNumeroSemanaAutomatico();
+
+    modoSemanaAutomatico = true;
+
+    cargarSemana();
+}
+
+
+function cerrarSesion(){
+
+    location.reload();
+
+}
+
+
+/* ==================================================
+   ACTUALIZACIÓN AUTOMÁTICA CADA MINUTO
+================================================== */
+
+setInterval(function(){
+
+    actualizarEstadoAgenda();
+    mostrarHorarios();
+
+    if(
+        modoSemanaAutomatico &&
+        !document.getElementById("admin").classList.contains("oculto")
+    ){
+
+        const nuevaSemana = calcularNumeroSemanaAutomatico();
+
+        if(nuevaSemana !== numeroSemana){
+            numeroSemana = nuevaSemana;
+            cargarSemana();
+        }
+    }
+
+}, 60000);
+
+
+document.addEventListener("click", function(event){
+
+    const modal = document.getElementById("modalAsignar");
+
+    if(modal && event.target === modal){
+        cerrarModalAsignar();
+    }
+
+});
+document.getElementById("buscarCliente").addEventListener("input", function(){
+    cargarClientes(this.value);
+});
+async function revisarSesionRecordada(){
+    const recordar = localStorage.getItem("recordarAdmin");
+
+    if(recordar !== "si"){
+        return;
+    }
+
+    const { data } = await supabaseClient.auth.getSession();
+
+    if(data.session){
+        console.log("✅ SESIÓN RECORDADA");
+
+        document.getElementById("login").classList.add("oculto");
+        document.getElementById("admin").classList.remove("oculto");
+
+        numeroSemana = calcularNumeroSemanaAutomatico();
+        modoSemanaAutomatico = true;
+        cargarSemana();
+        cargarClientes();
+    }
+}
+
+revisarSesionRecordada();
+</script>
+
+</body>
+</html>
