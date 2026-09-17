@@ -1025,14 +1025,56 @@ function actualizarEstadoAgenda(){
    OBTENER CITAS
 ================================================== */
 
-function obtenerCitas(){
+async function obtenerCitas(){
 
-    return JSON.parse(
-        localStorage.getItem(
-            "citasBarberia"
-        ) || "{}"
+    const { data, error } =
+        await supabaseClient.rpc("obtener_citas_admin");
+
+    if(error){
+
+        console.error(
+            "Error obteniendo citas del administrador:",
+            error
+        );
+
+        return {};
+    }
+
+    const citas = {};
+
+    (data || []).forEach(cita => {
+
+        const fecha = cita.fecha;
+        const hora = String(cita.hora).substring(0, 5);
+
+        if(!citas[fecha]){
+            citas[fecha] = [];
+        }
+
+        citas[fecha].push({
+
+            id: cita.id,
+
+            hora: hora,
+
+            nombre: cita.nombre_cliente,
+
+            whatsapp: cita.whatsapp_cliente,
+
+            tipo: cita.tipo,
+
+            estado: cita.estado
+
+        });
+
+    });
+
+    console.log(
+        "✅ Citas del administrador desde Supabase:",
+        citas
     );
 
+    return citas;
 }
 
 
@@ -1216,7 +1258,7 @@ async function mostrarHorarios(){
     contenedor.innerHTML = "";
 
 
-    const resultadoCitas = await supabaseClient.rpc("obtener_disponibilidad");
+    const resultadoCitas = await supabaseClient.rpc("obtener_citas_admin");
 
 const citas = {};
 
@@ -1229,8 +1271,13 @@ const citas = {};
     }
 
     citas[fecha].push({
-        hora: hora
-    });
+    id: cita.id,
+    hora: hora,
+    nombre: cita.nombre_cliente,
+    whatsapp: cita.whatsapp_cliente,
+    tipo: cita.tipo,
+    estado: cita.estado
+});
 });
 
     const citasDelDia =
@@ -1424,9 +1471,21 @@ const citas = {};
 
         else if(cita){
 
-            div.classList.add(
-                "ocupado"
-            );
+    div.classList.add(
+        "ocupado"
+    );
+
+    div.onclick = function(event){
+
+        if(event.target.tagName === "BUTTON"){
+            return;
+        }
+
+        verDatosCita(item.hora);
+    };
+
+    
+        
 
 
             div.innerHTML = `
@@ -1620,7 +1679,28 @@ function abrirCitaNormal(hora){
         nombre.focus();
     }, 50);
 }
+async function verDatosCita(hora){
 
+    const citas = await obtenerCitas();
+
+    const citasDelDia = citas[fechaActual] || [];
+
+    const cita = citasDelDia.find(
+        c => c.hora === hora
+    );
+
+    if(!cita){
+        alert("No se encontraron los datos de esta cita.");
+        return;
+    }
+
+    alert(
+        "📅 DATOS DE LA CITA\n\n" +
+        "⏰ Hora: " + formatearHora12(hora) + "\n" +
+        "👤 Cliente: " + (cita.nombre || "Sin nombre") + "\n" +
+        "📱 WhatsApp: " + (cita.whatsapp || "Sin WhatsApp")
+    );
+}
 function cerrarModalAsignar(){
 
     const modal = document.getElementById("modalAsignar");
@@ -1796,7 +1876,7 @@ async function guardarCita(fecha, hora, nombre, whatsapp, especial){
 
 
         // Mantener también el funcionamiento actual del administrador
-        const citas = obtenerCitas();
+        const citas = await obtenerCitas();
 
         if(!citas[fecha]){
             citas[fecha] = [];
