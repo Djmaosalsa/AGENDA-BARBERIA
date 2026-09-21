@@ -353,6 +353,22 @@ try {
     );
 }
 
+// 🔴 REALTIME — AVISO DE CAMBIO EN LA AGENDA
+const canalAgenda = supabaseClient
+    .channel("agenda-publica")
+    .on(
+        "broadcast",
+        { event: "agenda_actualizada" },
+        async function () {
+            console.log("🔔 Cambio detectado en la agenda");
+
+            await mostrarHorarios();
+            actualizarEstadoAgenda();
+        }
+    )
+    .subscribe(function (status) {
+        console.log("📡 Estado Realtime:", status);
+    });
 
 
 console.log("✅ Supabase conectado correctamente");
@@ -879,36 +895,59 @@ async function obtenerCitas(){
    CANCELACIONES FIJAS
 ================================================== */
 
-function obtenerCancelaciones(){
+let cancelacionesFijasSupabase = {};
 
-    return JSON.parse(
+async function cargarCancelacionesFijas(){
 
-        localStorage.getItem(
-            "cancelacionesFijas"
-        ) || "{}"
+    const { data, error } =
+        await supabaseClient.rpc(
+            "obtener_cancelaciones_fijas"
+        );
 
+    if(error){
+
+        console.error(
+            "Error obteniendo cancelaciones fijas:",
+            error
+        );
+
+        cancelacionesFijasSupabase = {};
+        return;
+    }
+
+    const datos = {};
+
+    (data || []).forEach(cancelacion => {
+
+        const fecha = cancelacion.fecha;
+
+        const hora =
+            String(cancelacion.hora).substring(0, 5);
+
+        if(!datos[fecha]){
+            datos[fecha] = [];
+        }
+
+        datos[fecha].push(hora);
+    });
+
+    cancelacionesFijasSupabase = datos;
+
+    console.log(
+        "Cancelaciones fijas desde Supabase:",
+        cancelacionesFijasSupabase
     );
-
 }
-
 
 function estaFijaCancelada(
     fecha,
     hora
 ){
 
-    const datos =
-        obtenerCancelaciones();
-
-
     return (
-
-        datos[fecha] &&
-
-        datos[fecha].includes(hora)
-
+        cancelacionesFijasSupabase[fecha] &&
+        cancelacionesFijasSupabase[fecha].includes(hora)
     );
-
 }
 
 
@@ -982,6 +1021,8 @@ async function mostrarDias(){
 ================================================== */
 
 async function mostrarHorarios(){
+
+    await cargarCancelacionesFijas();
 
     const dia =
         obtenerSemana().find(
@@ -1621,7 +1662,7 @@ setInterval(
         }
 
     },
-    30000
+    200000
 );
 
 </script>
