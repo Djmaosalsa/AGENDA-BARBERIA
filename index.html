@@ -1154,7 +1154,10 @@ async function mostrarHorarios(){
                CITA NORMAL O ESPECIAL
             */
 
-            else if(cita){
+            else if(
+    cita &&
+    !(fija && cancelada)
+){
 
                 div.classList.add(
                     "ocupado"
