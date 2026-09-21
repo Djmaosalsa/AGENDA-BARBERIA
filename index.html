@@ -354,6 +354,7 @@ try {
 }
 
 // 🔴 REALTIME — AVISO DE CAMBIO EN LA AGENDA
+// Escucha cambios de citas normales/especiales y cancelaciones de citas fijas.
 const canalAgenda = supabaseClient
     .channel("agenda-publica")
     .on(
@@ -362,6 +363,17 @@ const canalAgenda = supabaseClient
         async function () {
             console.log("🔔 Cambio detectado en la agenda");
 
+            await mostrarHorarios();
+            actualizarEstadoAgenda();
+        }
+    )
+    .on(
+        "broadcast",
+        { event: "cancelacion_fija_actualizada" },
+        async function () {
+            console.log("🔔 Cambio detectado en cancelaciones fijas");
+
+            await cargarCancelacionesFijas();
             await mostrarHorarios();
             actualizarEstadoAgenda();
         }
@@ -1154,10 +1166,7 @@ async function mostrarHorarios(){
                CITA NORMAL O ESPECIAL
             */
 
-            else if(
-    cita &&
-    !(fija && cancelada)
-){
+            else if(cita){
 
                 div.classList.add(
                     "ocupado"
@@ -1665,7 +1674,7 @@ setInterval(
         }
 
     },
-    200000
+    20000
 );
 
 </script>

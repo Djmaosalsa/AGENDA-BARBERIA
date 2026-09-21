@@ -195,6 +195,40 @@ button:hover{
     flex:1;
 }
 
+
+.btnFija{
+    background:#76551a !important;
+}
+.btnQuitarFija{
+    background:#8b2020 !important;
+}
+.modalFijaExtra{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.85);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:10000;
+    padding:20px;
+    box-sizing:border-box;
+}
+.modalFijaExtra.activo{
+    display:flex;
+}
+.modalFijaExtraCaja{
+    width:100%;
+    max-width:430px;
+    background:#1b1b1b;
+    border-radius:16px;
+    padding:22px;
+    box-sizing:border-box;
+}
+.listaClientesFija{
+    max-height:260px;
+    overflow:auto;
+    margin-top:10px;
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -345,6 +379,23 @@ const supabaseClient = window.supabase.createClient(
 
     </div>
 
+    <!-- CONTROLES -->
+
+    <div class="panel">
+
+        <button
+            style="background:#7a2222;"
+            onclick="borrarDatosPrueba()"
+        >
+            🧹 BORRAR DATOS DE PRUEBA
+        </button>
+
+        <button onclick="cerrarSesion()">
+            🚪 CERRAR SESIÓN
+        </button>
+
+    </div>
+
     <!-- CLIENTES -->
 <div class="panel">
     <h2>👥 Clientes</h2>
@@ -382,22 +433,6 @@ const supabaseClient = window.supabase.createClient(
     </div>
 
 </div>
-    <!-- CONTROLES -->
-
-    <div class="panel">
-
-        <button
-            style="background:#7a2222;"
-            onclick="borrarDatosPrueba()"
-        >
-            🧹 BORRAR DATOS DE PRUEBA
-        </button>
-
-        <button onclick="cerrarSesion()">
-            🚪 CERRAR SESIÓN
-        </button>
-
-    </div>
 
 </div>
 
@@ -1383,11 +1418,20 @@ const citas = {};
         }
 
 
-        const fija =
-            citasFijas[dia.nombre]
-            .includes(
-                item.hora
-            );
+        // Una cita fija puede venir de la configuración antigua
+        // o de la tabla central citas_fijas de Supabase.
+        const fijaSupabase = obtenerFijaSupabase(
+            dia.nombre,
+            item.hora
+        );
+
+        const fijaBase =
+            citasFijas[dia.nombre] &&
+            citasFijas[dia.nombre].includes(item.hora);
+
+        const fija = Boolean(
+            fijaBase || fijaSupabase
+        );
 
 
         const cancelada =
@@ -1426,6 +1470,12 @@ const citas = {};
                 <br>
 
                 🔒 CITA FIJA
+
+                ${
+                    fijaSupabase
+                    ? `<br><strong>${fijaSupabase.nombre_cliente}</strong><br>${fijaSupabase.whatsapp_cliente}`
+                    : ""
+                }
 
                 <br>
 
@@ -2591,7 +2641,7 @@ setInterval(function(){
         }
     }
 
-}, 60000);
+}, 30000);
 
 
 document.addEventListener("click", function(event){
@@ -2629,7 +2679,692 @@ async function revisarSesionRecordada(){
 }
 
 revisarSesionRecordada();
+
+/* =========================================================
+   CORRECCIONES CENTRALES — SINCRONIZACIÓN Y CITAS FIJAS
+========================================================= */
+
+let cancelacionesFijasSupabase = {};
+let citasFijasSupabase = [];
+
+async function cargarCancelacionesFijas(){
+
+    const { data, error } =
+        await supabaseClient.rpc("obtener_cancelaciones_fijas");
+
+    if(error){
+        console.error("Error obteniendo cancelaciones fijas:", error);
+        cancelacionesFijasSupabase = {};
+        return;
+    }
+
+    const datos = {};
+
+    (data || []).forEach(item => {
+
+        const fecha = item.fecha;
+        const hora = String(item.hora).substring(0,5);
+
+        if(!datos[fecha]){
+            datos[fecha] = [];
+        }
+
+        datos[fecha].push(hora);
+    });
+
+    cancelacionesFijasSupabase = datos;
+}
+
+function estaFijaCancelada(fecha, hora){
+
+    return Boolean(
+        cancelacionesFijasSupabase[fecha] &&
+        cancelacionesFijasSupabase[fecha].includes(hora)
+    );
+}
+
+async function cargarCitasFijas(){
+
+    const { data, error } =
+        await supabaseClient
+            .from("citas_fijas")
+            .select("id, cliente_id, nombre_cliente, whatsapp_cliente, dia_semana, hora, activa")
+            .eq("activa", true)
+            .order("hora");
+
+    if(error){
+        console.error("Error cargando citas fijas:", error);
+        citasFijasSupabase = [];
+        return;
+    }
+
+    citasFijasSupabase = data || [];
+}
+
+function obtenerFijaSupabase(dia, hora){
+
+    return citasFijasSupabase.find(fija =>
+        fija.dia_semana === dia &&
+        String(fija.hora).substring(0,5) === hora &&
+        fija.activa === true
+    );
+}
+
+
+/* CANCELAR FIJA SOLO ESTA FECHA */
+
+async function cancelarCitaFija(hora){
+
+    if(!confirm("¿Cancelar esta cita fija SOLO para esta fecha?")){
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
+            .from("cancelaciones_fijas")
+            .insert({
+                fecha: fechaActual,
+                hora: hora
+            });
+
+    if(error && error.code !== "23505"){
+
+        console.error("Error guardando cancelación fija:", error);
+        alert("❌ No se pudo liberar la cita.");
+        return;
+    }
+
+    await cargarCancelacionesFijas();
+
+    await supabaseClient
+        .channel("agenda-publica")
+        .send({
+            type:"broadcast",
+            event:"cancelacion_fija_actualizada",
+            payload:{
+                fecha:fechaActual,
+                hora:hora
+            }
+        });
+
+    await mostrarHorarios();
+
+    alert("✅ Cita fija liberada para esta fecha.");
+}
+
+
+/* ELIMINAR CITA */
+
+async function eliminarCita(hora){
+
+    if(!confirm("¿Eliminar esta cita?")){
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
+            .from("citas")
+            .delete()
+            .eq("fecha", fechaActual)
+            .eq("hora", hora)
+            .eq("estado", "ocupada");
+
+    if(error){
+
+        console.error("Error eliminando cita:", error);
+        alert("❌ No se pudo eliminar la cita de Supabase.");
+        return;
+    }
+
+    await supabaseClient
+        .channel("agenda-publica")
+        .send({
+            type:"broadcast",
+            event:"agenda_actualizada",
+            payload:{
+                fecha:fechaActual,
+                hora:hora
+            }
+        });
+
+    await mostrarHorarios();
+    await mostrarListaEspeciales();
+
+    alert("✅ Cita eliminada correctamente.");
+}
+
+
+/* ELIMINAR ESPECIAL */
+
+async function eliminarEspecial(hora){
+
+    if(!confirm("¿Eliminar esta cita especial?")){
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
+            .from("citas")
+            .delete()
+            .eq("fecha", fechaActual)
+            .eq("hora", hora)
+            .eq("tipo", "especial")
+            .eq("estado", "ocupada");
+
+    if(error){
+
+        console.error("Error eliminando especial:", error);
+        alert("❌ No se pudo eliminar la cita especial.");
+        return;
+    }
+
+    await supabaseClient
+        .channel("agenda-publica")
+        .send({
+            type:"broadcast",
+            event:"agenda_actualizada",
+            payload:{
+                fecha:fechaActual,
+                hora:hora
+            }
+        });
+
+    await mostrarHorarios();
+    await mostrarListaEspeciales();
+
+    alert("✅ Cita especial eliminada.");
+}
+
+
+/* CREAR CITA FIJA */
+
+let diaFijaExtra = "";
+let horaFijaExtra = "";
+let clienteFijaExtra = null;
+let modoNuevoClienteFija = false;
+
+async function abrirFijaExtra(dia, hora){
+
+    diaFijaExtra = dia;
+    horaFijaExtra = hora;
+    clienteFijaExtra = null;
+    modoNuevoClienteFija = false;
+
+    document.getElementById("infoFijaExtra").innerHTML =
+        "🔒 " + dia + " · " + formatearHora12(hora);
+
+    document.getElementById("buscarFijaExtra").value = "";
+    document.getElementById("nombreNuevoFija").value = "";
+    document.getElementById("whatsappNuevoFija").value = "";
+    document.getElementById("nuevoClienteFija").style.display = "none";
+    document.getElementById("modoExistenteFija").style.display = "block";
+    document.getElementById("botonCrearNuevoFija").style.display = "block";
+
+    document.getElementById("modalFijaExtra")
+        .classList.add("activo");
+
+    if(clientesCargados.length === 0){
+        await cargarClientes("");
+    }
+
+    mostrarClientesFijaExtra("");
+}
+
+function cerrarFijaExtra(){
+
+    document.getElementById("modalFijaExtra")
+        .classList.remove("activo");
+
+    diaFijaExtra = "";
+    horaFijaExtra = "";
+    clienteFijaExtra = null;
+    modoNuevoClienteFija = false;
+}
+
+function mostrarClientesFijaExtra(filtro){
+
+    if(modoNuevoClienteFija){
+        return;
+    }
+
+    const contenedor =
+        document.getElementById("listaClientesFijaExtra");
+
+    const texto =
+        String(filtro || "").toLowerCase().trim();
+
+    const lista =
+        clientesCargados.filter(cliente =>
+            String(cliente.nombre || "").toLowerCase().includes(texto) ||
+            String(cliente.whatsapp || "").includes(texto)
+        );
+
+    if(lista.length === 0){
+        contenedor.innerHTML =
+            "<p style='text-align:center;'>No hay clientes que coincidan.</p>";
+        return;
+    }
+
+    contenedor.innerHTML =
+        lista.slice(0,100).map(cliente => `
+            <button
+                type="button"
+                style="width:100%;text-align:left;margin:4px 0;"
+                onclick="seleccionarFijaExtra(${cliente.id})"
+            >
+                👤 ${cliente.nombre || "Sin nombre"}<br>
+                📱 ${cliente.whatsapp || "Sin WhatsApp"}
+            </button>
+        `).join("");
+}
+
+function seleccionarFijaExtra(id){
+
+    const cliente =
+        clientesCargados.find(c => String(c.id) === String(id));
+
+    if(!cliente){
+        alert("No se encontró el cliente.");
+        return;
+    }
+
+    clienteFijaExtra = cliente;
+    modoNuevoClienteFija = false;
+
+    document.getElementById("modoExistenteFija").style.display = "block";
+    document.getElementById("nuevoClienteFija").style.display = "none";
+    document.getElementById("botonCrearNuevoFija").style.display = "block";
+
+    document.getElementById("infoFijaExtra").innerHTML =
+        "🔒 " +
+        diaFijaExtra +
+        " · " +
+        formatearHora12(horaFijaExtra) +
+        "<br><br>👤 " +
+        cliente.nombre +
+        "<br>📱 " +
+        cliente.whatsapp;
+}
+
+function activarNuevoClienteFija(){
+
+    clienteFijaExtra = null;
+    modoNuevoClienteFija = true;
+
+    document.getElementById("modoExistenteFija").style.display = "none";
+    document.getElementById("nuevoClienteFija").style.display = "block";
+    document.getElementById("botonCrearNuevoFija").style.display = "none";
+    document.getElementById("listaClientesFijaExtra").innerHTML = "";
+
+    document.getElementById("nombreNuevoFija").focus();
+}
+
+function volverClientesExistentesFija(){
+
+    clienteFijaExtra = null;
+    modoNuevoClienteFija = false;
+
+    document.getElementById("nuevoClienteFija").style.display = "none";
+    document.getElementById("modoExistenteFija").style.display = "block";
+    document.getElementById("botonCrearNuevoFija").style.display = "block";
+
+    mostrarClientesFijaExtra(
+        document.getElementById("buscarFijaExtra").value
+    );
+}
+
+async function crearClienteFijaExtra(){
+
+    const nombre =
+        document.getElementById("nombreNuevoFija").value.trim();
+
+    const whatsapp =
+        document.getElementById("whatsappNuevoFija").value.trim();
+
+    if(!nombre || !whatsapp){
+        alert("Ingresa el nombre y el WhatsApp del cliente.");
+        return false;
+    }
+
+    // Primero verificamos si ese WhatsApp ya existe en Supabase.
+    const { data: existente, error: errorBusqueda } =
+        await supabaseClient
+            .from("clientes")
+            .select("id, nombre, whatsapp, recibir_mensajes, estado, fuente")
+            .eq("whatsapp", whatsapp)
+            .maybeSingle();
+
+    if(errorBusqueda){
+        console.error("Error buscando cliente:", errorBusqueda);
+        alert("❌ No se pudo consultar el cliente.");
+        return false;
+    }
+
+    if(existente){
+        clienteFijaExtra = existente;
+
+        if(!Array.isArray(clientesCargados)){
+            clientesCargados = [];
+        }
+
+        const indice = clientesCargados.findIndex(
+            c => String(c.id) === String(existente.id)
+        );
+
+        if(indice >= 0){
+            clientesCargados[indice] = existente;
+        }else{
+            clientesCargados.push(existente);
+        }
+
+        alert("ℹ️ Ese WhatsApp ya existe. Se utilizará el cliente existente.");
+        return true;
+    }
+
+    const { data: nuevoCliente, error: errorNuevo } =
+        await supabaseClient
+            .from("clientes")
+            .insert([{
+                nombre: nombre,
+                whatsapp: whatsapp,
+                recibir_mensajes: false,
+                estado: "activo",
+                fuente: "admin"
+            }])
+            .select("id, nombre, whatsapp, recibir_mensajes, estado, fuente")
+            .single();
+
+    if(errorNuevo){
+        console.error("Error creando cliente fijo:", errorNuevo);
+        alert("❌ No se pudo crear el cliente. Revisa la consola para más detalles.");
+        return false;
+    }
+
+    clienteFijaExtra = nuevoCliente;
+    clientesCargados.push(nuevoCliente);
+
+    return true;
+}
+
+async function guardarFijaExtra(){
+
+    if(!diaFijaExtra || !horaFijaExtra){
+        alert("No se encontró el día u horario de la cita fija.");
+        return;
+    }
+
+    // Si estamos creando un cliente nuevo, lo creamos primero.
+    if(modoNuevoClienteFija && !clienteFijaExtra){
+        const creado = await crearClienteFijaExtra();
+        if(!creado){
+            return;
+        }
+    }
+
+    if(!clienteFijaExtra){
+        alert("Selecciona un cliente existente o crea uno nuevo.");
+        return;
+    }
+
+    await cargarCitasFijas();
+
+    if(obtenerFijaSupabase(diaFijaExtra, horaFijaExtra)){
+        alert("Ya existe una cita fija para ese día y horario.");
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
+            .from("citas_fijas")
+            .insert({
+                cliente_id:clienteFijaExtra.id,
+                nombre_cliente:clienteFijaExtra.nombre,
+                whatsapp_cliente:clienteFijaExtra.whatsapp,
+                dia_semana:diaFijaExtra,
+                hora:horaFijaExtra,
+                activa:true
+            });
+
+    if(error){
+        console.error("Error guardando cita fija:", error);
+        alert("❌ No se pudo guardar la cita fija.");
+        return;
+    }
+
+    await cargarCitasFijas();
+
+    await supabaseClient
+        .channel("agenda-publica")
+        .send({
+            type:"broadcast",
+            event:"agenda_actualizada",
+            payload:{
+                tipo:"cita_fija_creada",
+                dia:diaFijaExtra,
+                hora:horaFijaExtra
+            }
+        });
+
+    cerrarFijaExtra();
+
+    await mostrarHorarios();
+
+    alert("✅ Cita fija guardada correctamente.");
+}
+
+async function quitarCitaFija(id){
+
+    if(!confirm("¿Quitar esta cita fija definitivamente?")){
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
+            .from("citas_fijas")
+            .delete()
+            .eq("id", id);
+
+    if(error){
+        console.error("Error eliminando cita fija:", error);
+        alert("❌ No se pudo quitar la cita fija.");
+        return;
+    }
+
+    await cargarCitasFijas();
+
+    await supabaseClient
+        .channel("agenda-publica")
+        .send({
+            type:"broadcast",
+            event:"agenda_actualizada",
+            payload:{
+                tipo:"cita_fija_eliminada",
+                id:id
+            }
+        });
+
+    await mostrarHorarios();
+
+    alert("✅ Cita fija quitada correctamente.");
+}
+
+
+/* CARGA CENTRAL AL ABRIR EL ADMIN */
+
+cargarCitasFijas();
+cargarCancelacionesFijas();
+
+/* BOTÓN HACER FIJA:
+   Se agrega visualmente a los horarios disponibles sin reemplazar
+   la lógica existente del administrador.
+*/
+
+const mostrarHorariosOriginal =
+    mostrarHorarios;
+
+mostrarHorarios = async function(){
+
+    await cargarCitasFijas();
+    await cargarCancelacionesFijas();
+
+    await mostrarHorariosOriginal();
+
+    document
+        .querySelectorAll("#horarios .slot.disponible")
+        .forEach(div => {
+
+            if(div.querySelector(".btnFija")){
+                return;
+            }
+
+            const botonAsignar =
+                div.querySelector(".btnAsignarNormal");
+
+            if(!botonAsignar){
+                return;
+            }
+
+            const hora =
+                botonAsignar.dataset.hora;
+
+            if(!hora){
+                return;
+            }
+
+            const dia =
+                obtenerSemana().find(
+                    d => d.fecha === fechaActual
+                );
+
+            if(!dia){
+                return;
+            }
+
+            const boton =
+                document.createElement("button");
+
+            boton.type = "button";
+            boton.className = "btnFija";
+            boton.textContent = "🔒 HACER FIJA";
+
+            boton.onclick =
+                function(event){
+
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    abrirFijaExtra(
+                        dia.nombre,
+                        hora
+                    );
+                };
+
+            div.appendChild(boton);
+        });
+};
+
+
+/* BUSCADOR DE CLIENTES FIJOS */
+
+document.addEventListener(
+    "input",
+    function(event){
+
+        if(
+            event.target &&
+            event.target.id === "buscarFijaExtra"
+        ){
+            mostrarClientesFijaExtra(
+                event.target.value
+            );
+        }
+
+    }
+);
+
 </script>
+
+
+<div id="modalFijaExtra" class="modalFijaExtra">
+    <div class="modalFijaExtraCaja">
+
+        <h2>🔒 HACER CITA FIJA</h2>
+
+        <p id="infoFijaExtra" style="text-align:center;font-weight:bold;font-size:18px;"></p>
+
+        <div id="modoExistenteFija">
+            <input
+                type="text"
+                id="buscarFijaExtra"
+                placeholder="🔎 Buscar cliente por nombre o WhatsApp"
+                autocomplete="off"
+                style="width:100%;"
+            >
+
+            <div id="listaClientesFijaExtra" class="listaClientesFija"></div>
+        </div>
+
+        <button
+            type="button"
+            id="botonCrearNuevoFija"
+            style="width:100%;margin-top:10px;"
+            onclick="activarNuevoClienteFija()"
+        >
+            ➕ CREAR NUEVO CLIENTE
+        </button>
+
+        <div id="nuevoClienteFija" style="display:none;margin-top:12px;">
+
+            <p style="margin:5px 0 10px;font-weight:bold;">
+                ➕ Nuevo cliente
+            </p>
+
+            <input
+                type="text"
+                id="nombreNuevoFija"
+                placeholder="Nombre del cliente"
+                autocomplete="off"
+                style="width:100%;"
+            >
+
+            <input
+                type="tel"
+                id="whatsappNuevoFija"
+                placeholder="WhatsApp"
+                autocomplete="off"
+                style="width:100%;margin-top:8px;"
+            >
+
+            <button
+                type="button"
+                style="width:100%;margin-top:8px;"
+                onclick="volverClientesExistentesFija()"
+            >
+                ↩️ VOLVER A CLIENTES EXISTENTES
+            </button>
+
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button
+                type="button"
+                style="flex:1;"
+                onclick="guardarFijaExtra()"
+            >
+                🔒 GUARDAR FIJA
+            </button>
+
+            <button
+                type="button"
+                style="flex:1;"
+                onclick="cerrarFijaExtra()"
+            >
+                ❌ CANCELAR
+            </button>
+        </div>
+
+    </div>
+</div>
 
 </body>
 </html>
