@@ -360,7 +360,28 @@ const supabaseClient = window.supabase.createClient(
         Cargando clientes...
     </div>
 </div>
+<!-- CLIENTES FIJOS / CITAS RECURRENTES -->
 
+<div class="panel">
+
+    <h2>🔒 Clientes fijos / citas recurrentes</h2>
+
+    <p class="aviso">
+        Administra los clientes que tienen una cita fija cada semana.
+    </p>
+
+    <button
+        type="button"
+        onclick="abrirModalClienteFijo()"
+    >
+        ➕ AGREGAR CLIENTE FIJO
+    </button>
+
+    <div id="listaClientesFijos">
+        Cargando clientes fijos...
+    </div>
+
+</div>
     <!-- CONTROLES -->
 
     <div class="panel">
@@ -1594,50 +1615,65 @@ const citas = {};
    CANCELAR FIJA
 ================================================== */
 
-function cancelarCitaFija(hora){
+async function cancelarCitaFija(hora){
 
     if(
         !confirm(
             "¿Cancelar esta cita fija SOLO para esta fecha?"
         )
     ){
-
         return;
-
     }
 
+    // Guardar la cancelación en Supabase
+    const { error } = await supabaseClient
+        .from("cancelaciones_fijas")
+        .insert({
+            fecha: fechaActual,
+            hora: hora
+        });
 
-    const datos =
-        obtenerCancelacionesFijas();
+    if(error){
 
+        // Si ya estaba cancelada para esa fecha
+        if(error.code === "23505"){
+            alert("ℹ️ Esta cita ya estaba liberada para esta fecha.");
+        }else{
+            console.error(
+                "Error guardando cancelación fija:",
+                error
+            );
 
-    if(
-        !datos[fechaActual]
-    ){
+            alert(
+                "❌ No se pudo liberar la cita.\n\n" +
+                "La cita existente no fue modificada."
+            );
 
+            return;
+        }
+    }
+
+    // Mantener también el registro local del administrador
+    // para no alterar el funcionamiento actual del panel.
+    const datos = obtenerCancelacionesFijas();
+
+    if(!datos[fechaActual]){
         datos[fechaActual] = [];
-
     }
 
-
-    if(
-        !datos[fechaActual]
-            .includes(hora)
-    ){
-
-        datos[fechaActual]
-            .push(hora);
-
+    if(!datos[fechaActual].includes(hora)){
+        datos[fechaActual].push(hora);
     }
 
+    guardarCancelacionesFijas(datos);
 
-    guardarCancelacionesFijas(
-        datos
-    );
-
-
+    // Actualizar solamente la vista del administrador
     mostrarHorarios();
 
+    alert(
+        "✅ Cita liberada para esta fecha.\n\n" +
+        "Ahora la cancelación también quedó guardada en Supabase."
+    );
 }
 
 
@@ -2555,7 +2591,7 @@ setInterval(function(){
         }
     }
 
-}, 30000);
+}, 60000);
 
 
 document.addEventListener("click", function(event){
