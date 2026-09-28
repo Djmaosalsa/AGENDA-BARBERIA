@@ -354,7 +354,6 @@ try {
 }
 
 // 🔴 REALTIME — AVISO DE CAMBIO EN LA AGENDA
-// Escucha cambios de citas normales/especiales y cancelaciones de citas fijas.
 const canalAgenda = supabaseClient
     .channel("agenda-publica")
     .on(
@@ -363,16 +362,7 @@ const canalAgenda = supabaseClient
         async function () {
             console.log("🔔 Cambio detectado en la agenda");
 
-            await mostrarHorarios();
-            actualizarEstadoAgenda();
-        }
-    )
-    .on(
-        "broadcast",
-        { event: "cancelacion_fija_actualizada" },
-        async function () {
-            console.log("🔔 Cambio detectado en cancelaciones fijas");
-
+            await cargarCitasFijasPublicas();
             await cargarCancelacionesFijas();
             await mostrarHorarios();
             actualizarEstadoAgenda();
@@ -494,6 +484,47 @@ const citasFijas = {
     ]
 
 };
+
+
+/* ==================================================
+   CITAS FIJAS CENTRALES — SUPABASE
+   La tabla citas_fijas es la fuente para las nuevas
+   citas recurrentes creadas desde el administrador.
+================================================== */
+
+let citasFijasSupabase = [];
+
+async function cargarCitasFijasPublicas(){
+
+    try{
+
+        const { data, error } =
+            await supabaseClient.rpc("obtener_citas_fijas_publicas");
+
+        if(error){
+            console.error("Error obteniendo citas fijas desde Supabase:", error);
+            citasFijasSupabase = [];
+            return;
+        }
+
+        citasFijasSupabase = data || [];
+
+        console.log("🔒 Citas fijas desde Supabase:", citasFijasSupabase);
+
+    }catch(error){
+        console.error("Error consultando citas fijas públicas:", error);
+        citasFijasSupabase = [];
+    }
+}
+
+function existeCitaFija(dia, hora){
+
+    return citasFijasSupabase.some(fija =>
+        fija.dia_semana === dia &&
+        String(fija.hora).substring(0,5) === hora &&
+        fija.activa === true
+    );
+}
 
 
 /* ==================================================
@@ -1113,9 +1144,15 @@ async function mostrarHorarios(){
                 "slot";
 
 
+            const fijaBase =
+                citasFijas[dia.nombre] &&
+                citasFijas[dia.nombre].includes(hora);
+
+            const fijaSupabase =
+                existeCitaFija(dia.nombre, hora);
+
             const fija =
-                citasFijas[dia.nombre]
-                    .includes(hora);
+                Boolean(fijaBase || fijaSupabase);
 
 
             const cancelada =
@@ -1166,7 +1203,10 @@ async function mostrarHorarios(){
                CITA NORMAL O ESPECIAL
             */
 
-            else if(cita){
+            else if(
+    cita &&
+    !(fija && cancelada)
+){
 
                 div.classList.add(
                     "ocupado"
@@ -1506,10 +1546,10 @@ async function enviarWhatsApp(){
 
 
     if(
-        citasFijas[dia.nombre]
-            .includes(
-                horaSeleccionada
-            )
+        existeCitaFija(
+            dia.nombre,
+            horaSeleccionada
+        )
         &&
         !estaFijaCancelada(
             fechaActual,
@@ -1595,7 +1635,7 @@ async function enviarWhatsApp(){
    INICIO AUTOMÁTICO
 ================================================== */
 
-function cargarAgendaAutomatica(){
+async function cargarAgendaAutomatica(){
 
     numeroSemana =
         calcularNumeroSemanaAutomatico();
@@ -1609,13 +1649,17 @@ function cargarAgendaAutomatica(){
         semana[0].fecha;
 
 
+    await cargarCitasFijasPublicas();
+
+    await cargarCancelacionesFijas();
+
     actualizarEstadoAgenda();
 
     actualizarTitulo();
 
     mostrarDias();
 
-    mostrarHorarios();
+    await mostrarHorarios();
 
 }
 
@@ -1651,7 +1695,11 @@ setInterval(
 
             mostrarDias();
 
-            mostrarHorarios();
+            cargarCitasFijasPublicas().then(function(){
+                cargarCancelacionesFijas().then(function(){
+                    mostrarHorarios();
+                });
+            });
 
         }
 
@@ -1669,12 +1717,16 @@ setInterval(
             agendaEstaAbierta()
         ){
 
-            mostrarHorarios();
+            cargarCitasFijasPublicas().then(function(){
+                cargarCancelacionesFijas().then(function(){
+                    mostrarHorarios();
+                });
+            });
 
         }
 
     },
-    20000
+    200000
 );
 
 </script>

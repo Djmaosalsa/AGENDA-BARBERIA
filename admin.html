@@ -2673,7 +2673,12 @@ async function revisarSesionRecordada(){
 
         numeroSemana = calcularNumeroSemanaAutomatico();
         modoSemanaAutomatico = true;
-        cargarSemana();
+        Promise.all([
+            cargarCitasFijas(),
+            cargarCancelacionesFijas()
+        ]).then(function(){
+            cargarSemana();
+        });
         cargarClientes();
     }
 }
