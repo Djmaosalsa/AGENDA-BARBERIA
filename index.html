@@ -1065,7 +1065,11 @@ async function mostrarDias(){
 
 async function mostrarHorarios(){
 
+    // Evita pintar resultados de una fecha anterior si el usuario
+    // cambia de día mientras Supabase todavía está respondiendo.
+    const fechaConsulta = fechaActual;
     await cargarCancelacionesFijas();
+    if(fechaConsulta !== fechaActual) return;
 
     const dia =
         obtenerSemana().find(
@@ -1126,6 +1130,9 @@ async function mostrarHorarios(){
     const citas =
        await obtenerCitas();
 
+    // Una consulta lenta de la fecha previa no debe sobrescribir
+    // el horario del día que el usuario acaba de seleccionar.
+    if(fechaConsulta !== fechaActual) return;
 
     const citasDelDia =
         citas[fechaActual] || [];
@@ -1203,10 +1210,10 @@ async function mostrarHorarios(){
                CITA NORMAL O ESPECIAL
             */
 
-            else if(
-    cita &&
-    !(fija && cancelada)
-){
+            // PRIORIDAD: una cita real guardada en Supabase
+            // nunca puede mostrarse disponible, aunque haya
+            // una cancelación de cita fija para esta fecha.
+            else if(cita){
 
                 div.classList.add(
                     "ocupado"
